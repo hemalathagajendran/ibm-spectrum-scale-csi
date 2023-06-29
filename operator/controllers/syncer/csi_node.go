@@ -348,6 +348,13 @@ func (s *csiNodeSyncer) getEnvFor(name string) []corev1.EnvVar {
 		CGPrefixObj.Value = UUID
 		EnvVars = append(EnvVars, CGPrefixObj)
 
+		OpenShiftObj := corev1.EnvVar{}
+		OpenShiftObj.Name = config.ENVIsOpenShift
+		IsOpenShift, ok := os.LookupEnv(config.ENVIsOpenShift)
+		if ok {
+			OpenShiftObj.Value = IsOpenShift
+		}
+
 		/*for _, cmEnv := range cmEnvVars {
 			EnvVars = append(EnvVars, cmEnv)
 		}*/
