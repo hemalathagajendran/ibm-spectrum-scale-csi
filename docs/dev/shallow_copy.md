@@ -53,13 +53,13 @@ for example -
 a. Version 1 snapshot handle will look like following. here snapshot name is `snapshot-b4f6236f-01e4-4c67-9bf5-39ec0969c9f9`
 
 
-   `0;2;4033149527292681937;5D3D0B0A:64509FB6;;pvc-f6cd98ac-e1f0-4911-888d-931889dff379;snapshot-b4f6236f-01e4-4c67-9bf5-39ec0969c9f9;;pvc-f6cd98ac-e1f0-4911-888d-931889dff379-data`
+   ```0;2;4033149527292681937;5D3D0B0A:64509FB6;;pvc-f6cd98ac-e1f0-4911-888d-931889dff379;snapshot-b4f6236f-01e4-4c67-9bf5-39ec0969c9f9;;pvc-f6cd98ac-e1f0-4911-888d-931889dff379-data```
 
 
 b. Version 2 snapshot handle will look like following. here snapshot name is `snapshot-b515a1c2-9fe6-47df-9a86-10a20b7965c6`
 
 
-`1;1;4033149527292681937;5D3D0B0A:64509FB6;4c6db64a-32ea-4c7a-9768-a387539af470-default;pvc-5cf0ed9b-6b58-4313-8442-8df57bed6229;snapshot-b515a1c2-9fe6-47df-9a86-10a20b7965c6;snapshot-0f0d7c6b-d1dc-4214-9144-c3dba47720ed`
+```1;1;4033149527292681937;5D3D0B0A:64509FB6;4c6db64a-32ea-4c7a-9768-a387539af470-default;pvc-5cf0ed9b-6b58-4313-8442-8df57bed6229;snapshot-b515a1c2-9fe6-47df-9a86-10a20b7965c6;snapshot-0f0d7c6b-d1dc-4214-9144-c3dba47720ed```
 
 2. Create directory under "independent-fileset-name" with the name 'snapshot name' if not present `#BookKeeping` `#ReferenceCount`
    **Note: We must have mutex to create and delete directory**
@@ -112,5 +112,374 @@ Bind mount snapshot path in volumeHandle to kubelet path. This should not requir
 ## NodeGetVolumeStats
 
 Not supported.
+
+
+## Flow - Version 2
+
+**1. Create StorageClass**
+
+```
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ibm-spectrum-scale-csi-advance
+parameters:
+  version: "2"
+  volBackendFs: fs0
+provisioner: spectrumscale.csi.ibm.com
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+```
+
+**2. Create PVC**
+
+```
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: scale-advance-pvc1
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: ibm-spectrum-scale-csi-advance
+```
+
+**3. PV will be created for above PVC**
+
+ ```
+Name:            pvc-bb945776-395a-4e63-8d3e-d1f6e826cdbf
+Labels:          <none>
+Annotations:     pv.kubernetes.io/provisioned-by: spectrumscale.csi.ibm.com
+                 volume.kubernetes.io/provisioner-deletion-secret-name:
+                 volume.kubernetes.io/provisioner-deletion-secret-namespace:
+Finalizers:      [kubernetes.io/pv-protection]
+StorageClass:    ibm-spectrum-scale-csi-advance-1
+Status:          Bound
+Claim:           testdr/scale-advance-pvc1
+Reclaim Policy:  Delete
+Access Modes:    RWX
+VolumeMode:      Filesystem
+Capacity:        1Gi
+Node Affinity:   <none>
+Message:
+Source:
+    Type:              CSI (a Container Storage Interface (CSI) volume source)
+    Driver:            spectrumscale.csi.ibm.com
+    FSType:            gpfs
+    VolumeHandle:      1;1;4033149527292681937;5D3D0B0A:64509FB6;4c6db64a-32ea-4c7a-9768-a387539af470-testdr;pvc-bb945776-395a-4e63-8d3e-d1f6e826cdbf;/ibm/fs0/4c6db64a-32ea-4c7a-9768-a387539af470-testdr/pvc-bb945776-395a-4e63-8d3e-d1f6e826cdbf
+    ReadOnly:          false
+    VolumeAttributes:      csi.storage.k8s.io/pv/name=pvc-bb945776-395a-4e63-8d3e-d1f6e826cdbf
+                           csi.storage.k8s.io/pvc/name=scale-advance-pvc1
+                           csi.storage.k8s.io/pvc/namespace=testdr
+                           storage.kubernetes.io/csiProvisionerIdentity=1692701621844-8081-spectrumscale.csi.ibm.com
+                           version=2
+                           volBackendFs=fs0
+Events:                <none>
+```
+
+**4. Create SnapshotClass**
+
+```
+apiVersion: snapshot.storage.k8s.io/v1
+deletionPolicy: Delete
+driver: spectrumscale.csi.ibm.com
+kind: VolumeSnapshotClass
+metadata:
+  name: ibm-spectrum-scale-snapshotclass
+parameters:
+  snapWindow: "30"
+  ```
+
+**5. Create VolumeSnaphost**
+
+```
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: scale-advance-pvc1-snapshot
+spec:
+  volumeSnapshotClassName: ibm-spectrum-scale-snapshotclass-advance
+  source:
+    persistentVolumeClaimName: scale-advance-pvc1
+```
+
+**6. VolumeSnapshotContent will be created for above VolumeSnapshot**
+
+```
+Name:         snapcontent-139520c1-7e65-47be-b793-58113c0ddd19
+Namespace:
+Labels:       <none>
+Annotations:  <none>
+API Version:  snapshot.storage.k8s.io/v1
+Kind:         VolumeSnapshotContent
+Metadata:
+  Creation Timestamp:  2023-09-05T09:48:55Z
+  Finalizers:
+    snapshot.storage.kubernetes.io/volumesnapshotcontent-bound-protection
+  Generation:        1
+  Resource Version:  28693947
+  UID:               d8e6f445-56b1-4f57-a094-ec5388e4b0b7
+Spec:
+  Deletion Policy:  Delete
+  Driver:           spectrumscale.csi.ibm.com
+  Source:
+    Volume Handle:             1;1;4033149527292681937;5D3D0B0A:64509FB6;4c6db64a-32ea-4c7a-9768-a387539af470-testdr;pvc-bb945776-395a-4e63-8d3e-d1f6e826cdbf;/ibm/fs0/4c6db64a-32ea-4c7a-9768-a387539af470-testdr/pvc-bb945776-395a-4e63-8d3e-d1f6e826cdbf
+  Volume Snapshot Class Name:  ibm-spectrum-scale-snapshotclass-advance
+  Volume Snapshot Ref:
+    API Version:       snapshot.storage.k8s.io/v1
+    Kind:              VolumeSnapshot
+    Name:              scale-advance-pvc1-snapshot
+    Namespace:         testdr
+    Resource Version:  28693893
+    UID:               139520c1-7e65-47be-b793-58113c0ddd19
+Status:
+  Creation Time:    1693907338000000000
+  Ready To Use:     true
+  Restore Size:     1073741824
+  Snapshot Handle:  1;1;4033149527292681937;5D3D0B0A:64509FB6;4c6db64a-32ea-4c7a-9768-a387539af470-testdr;pvc-bb945776-395a-4e63-8d3e-d1f6e826cdbf;snapshot-139520c1-7e65-47be-b793-58113c0ddd19;snapshot-5a4e6bdf-5db0-4c02-9f5e-d0b937f578dc
+Events:             <none>
+``` 
+
+**7. Create PVC from Snapshot**
+
+```
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ibm-spectrum-scale-pvc-advance-from-snapshot
+spec:
+  accessModes:
+  - ReadOnlyMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: ibm-spectrum-scale-csi-advance
+  dataSource:
+    name: scale-advance-pvc1-snapshot
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io
+
+```
+
+**8. Shallow copy PV will be created for above PVC**
+
+```
+# oc describe pv pvc-3fe89152-b707-449c-95e2-c056745f7ee8
+Name:            pvc-3fe89152-b707-449c-95e2-c056745f7ee8
+Labels:          <none>
+Annotations:     pv.kubernetes.io/provisioned-by: spectrumscale.csi.ibm.com
+                 volume.kubernetes.io/provisioner-deletion-secret-name:
+                 volume.kubernetes.io/provisioner-deletion-secret-namespace:
+Finalizers:      [kubernetes.io/pv-protection external-attacher/spectrumscale-csi-ibm-com]
+StorageClass:    ibm-spectrum-scale-csi-fileset
+Status:          Bound
+Claim:           testdr/ibm-spectrum-scale-pvc-advance-from-snapshot
+Reclaim Policy:  Delete
+Access Modes:    ROX
+VolumeMode:      Filesystem
+Capacity:        1Gi
+Node Affinity:   <none>
+Message:
+Source:
+    Type:              CSI (a Container Storage Interface (CSI) volume source)
+    Driver:            spectrumscale.csi.ibm.com
+    FSType:            gpfs
+    VolumeHandle:      1;3;4033149527292681937;5D3D0B0A:64509FB6;4c6db64a-32ea-4c7a-9768-a387539af470-testdr;pvc-3fe89152-b707-449c-95e2-c056745f7ee8;/ibm/fs0/4c6db64a-32ea-4c7a-9768-a387539af470-testdr/.snapshots/snapshot-139520c1-7e65-47be-b793-58113c0ddd19/pvc-bb945776-395a-4e63-8d3e-d1f6e826cdbf
+    ReadOnly:          false
+    VolumeAttributes:      csi.storage.k8s.io/pv/name=pvc-3fe89152-b707-449c-95e2-c056745f7ee8
+                           csi.storage.k8s.io/pvc/namespace=testdr
+                           volBackendFs=fs0
+                           version=2
+
+ ```
+
+## Flow - Version 1
+
+**1. Create StorageClass**
+
+```
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ibm-spectrum-scale-csi-fileset
+parameters:
+  volBackendFs: fs0
+provisioner: spectrumscale.csi.ibm.com
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+```
+
+**2. Create PVC**
+
+```
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: scale-fset-pvc
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: ibm-spectrum-scale-csi-fileset
+```
+
+**3. PV will be created for above PVC**
+
+```
+
+# oc describe pv pvc-f6cd98ac-e1f0-4911-888d-931889dff379
+Name:            pvc-f6cd98ac-e1f0-4911-888d-931889dff379
+Labels:          <none>
+Annotations:     pv.kubernetes.io/provisioned-by: spectrumscale.csi.ibm.com
+                 volume.kubernetes.io/provisioner-deletion-secret-name:
+                 volume.kubernetes.io/provisioner-deletion-secret-namespace:
+Finalizers:      [kubernetes.io/pv-protection external-attacher/spectrumscale-csi-ibm-com]
+StorageClass:    ibm-spectrum-scale-csi-fileset
+Status:          Bound
+Claim:           default/scale-fset-pvc
+Reclaim Policy:  Delete
+Access Modes:    RWX
+VolumeMode:      Filesystem
+Capacity:        1Gi
+Node Affinity:   <none>
+Message:
+Source:
+    Type:              CSI (a Container Storage Interface (CSI) volume source)
+    Driver:            spectrumscale.csi.ibm.com
+    FSType:            gpfs
+    VolumeHandle:      0;2;4033149527292681937;5D3D0B0A:64509FB6;;pvc-f6cd98ac-e1f0-4911-888d-931889dff379;/ibm/fs0/spectrum-scale-csi-volume-store/.volumes/pvc-f6cd98ac-e1f0-4911-888d-931889dff379
+    ReadOnly:          false
+    VolumeAttributes:      csi.storage.k8s.io/pv/name=pvc-f6cd98ac-e1f0-4911-888d-931889dff379
+                           csi.storage.k8s.io/pvc/name=scale-fset-pvc
+                           csi.storage.k8s.io/pvc/namespace=default
+                           storage.kubernetes.io/csiProvisionerIdentity=1693120059860-8081-spectrumscale.csi.ibm.com
+                           volBackendFs=fs0
+```
+
+
+**4. Create SnapshotClass**
+
+```
+apiVersion: snapshot.storage.k8s.io/v1
+deletionPolicy: Delete
+driver: spectrumscale.csi.ibm.com
+kind: VolumeSnapshotClass
+metadata:
+  name: ibm-spectrum-scale-snapshotclass
+parameters:
+  snapWindow: "30"
+  ```
+
+**5. Create VolumeSnapshot**
+
+```
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: scale-fset-pvc-snapshot
+spec:
+  volumeSnapshotClassName: ibm-spectrum-scale-snapshotclass
+  source:
+    persistentVolumeClaimName: scale-fset-pvc
+```
+
+
+**6. VolumeSnapshotContent will be created for above VolumeSnapshot**
+   
+```
+Name:         snapcontent-b4f6236f-01e4-4c67-9bf5-39ec0969c9f9
+Namespace:
+Labels:       <none>
+Annotations:  <none>
+API Version:  snapshot.storage.k8s.io/v1
+Kind:         VolumeSnapshotContent
+Metadata:
+  Creation Timestamp:  2023-08-30T05:18:19Z
+  Finalizers:
+    snapshot.storage.kubernetes.io/volumesnapshotcontent-bound-protection
+  Generation:        1
+  Resource Version:  27309307
+  UID:               031f9c0a-ee2e-41b2-af45-0fad9bda02f7
+Spec:
+  Deletion Policy:  Delete
+  Driver:           spectrumscale.csi.ibm.com
+  Source:
+    Volume Handle:             0;2;4033149527292681937;5D3D0B0A:64509FB6;;pvc-f6cd98ac-e1f0-4911-888d-931889dff379;/ibm/fs0/spectrum-scale-csi-volume-store/.volumes/pvc-f6cd98ac-e1f0-4911-888d-931889dff379
+  Volume Snapshot Class Name:  ibm-spectrum-scale-snapshotclass-advance
+  Volume Snapshot Ref:
+    API Version:       snapshot.storage.k8s.io/v1
+    Kind:              VolumeSnapshot
+    Name:              scale-fset-pvc-snapshot
+    Namespace:         default
+    Resource Version:  27309288
+    UID:               b4f6236f-01e4-4c67-9bf5-39ec0969c9f9
+Status:
+  Creation Time:    1693372700000000000
+  Ready To Use:     true
+  Restore Size:     1073741824
+  Snapshot Handle:  0;2;4033149527292681937;5D3D0B0A:64509FB6;;pvc-f6cd98ac-e1f0-4911-888d-931889dff379;snapshot-b4f6236f-01e4-4c67-9bf5-39ec0969c9f9;;pvc-f6cd98ac-e1f0-4911-888d-931889dff379-data
+```
+
+**7. Create PVC from Snapshot**
+
+```
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ibm-spectrum-scale-pvc-from-snapshot
+spec:
+  accessModes:
+  - ReadOnlyMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: ibm-spectrum-scale-csi-fileset
+  dataSource:
+    name: scale-fset-pvc-snapshot
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io
+
+```
+
+**8. PV will be created for above PVC**
+
+
+```
+# oc describe pv pvc-1b7a5134-e6b0-437a-8b40-4977f1298616
+Name:            pvc-1b7a5134-e6b0-437a-8b40-4977f1298616
+Labels:          <none>
+Annotations:     pv.kubernetes.io/provisioned-by: spectrumscale.csi.ibm.com
+                 volume.kubernetes.io/provisioner-deletion-secret-name:
+                 volume.kubernetes.io/provisioner-deletion-secret-namespace:
+Finalizers:      [kubernetes.io/pv-protection external-attacher/spectrumscale-csi-ibm-com]
+StorageClass:    ibm-spectrum-scale-csi-fileset
+Status:          Bound
+Claim:           default/ibm-spectrum-scale-pvc-from-snapshot
+Reclaim Policy:  Delete
+Access Modes:    ROX
+VolumeMode:      Filesystem
+Capacity:        1Gi
+Node Affinity:   <none>
+Message:
+Source:
+    Type:              CSI (a Container Storage Interface (CSI) volume source)
+    Driver:            spectrumscale.csi.ibm.com
+    FSType:            gpfs
+    VolumeHandle:      0;3;4033149527292681937;5D3D0B0A:64509FB6;pvc-f6cd98ac-e1f0-4911-888d-931889dff379;pvc-1b7a5134-e6b0-437a-8b40-4977f1298616;/ibm/fs0/pvc-f6cd98ac-e1f0-4911-888d-931889dff379/.snapshots/snapshot-b4f6236f-01e4-4c67-9bf5-39ec0969c9f9/pvc-f6cd98ac-e1f0-4911-888d-931889dff379/pvc-f6cd98ac-e1f0-4911-888d-931889dff379-data
+    ReadOnly:          false
+    VolumeAttributes:      csi.storage.k8s.io/pv/name=pvc-1b7a5134-e6b0-437a-8b40-4977f1298616
+                           csi.storage.k8s.io/pvc/namespace=default
+                           volBackendFs=fs0
+ ```
+
+
+
+
 
 
