@@ -66,18 +66,18 @@ b. Version 2 snapshot handle will look like following. here snapshot name is `sn
    
 3. Create another directory under 'independent-fileset-name'/'snapshot-name'/'volume-name' `#BookKeeping` `#ReferenceCount`
  
-4. Return volume handle with path `/ibm/fs1/'independent-fileset-name'/.snapshots/'snapshot-name'/'src-volume-path'`
+4. Return volume handle with path `/ibm/fs1/'independent-fileset-name'/.snapshots/'snapshot-name'/'src-pv-path'`
 From above snapshotHandle src-volume-path is `pvc-5cf0ed9b-6b58-4313-8442-8df57bed6229` for version 2 and `pvc-f6cd98ac-e1f0-4911-888d-931889dff379/pvc-f6cd98ac-e1f0-4911-888d-931889dff379-data` for version 1
 
 #### Volume Handle for shallow copy volumes 
 
-version 1 VolumeHandle: `0;3;'clusterID';'fsuid';'independent-fileset-name';'volume-name';'Complete Path = /ibm/fs0/ind_fileset/.snapshots/snapshot-name/pvc-name/pvc-name-data`
+version 1 VolumeHandle: `0;3;'clusterID';'fsuid';'independent-fileset-name';'pv-name';'Path'`
 
-version 2 VolumeHandle: `1;3;'clusterID';'fsuid';'CG Name';'volume-name';'Complete Path' = /ibm/fs0/xxx-ns/.snapshots/snapshot-name/pvc-name`
+version 2 VolumeHandle: `1;3;'clusterID';'fsuid';'CG Name';'pv-name';'Path'`
 
 ## DeleteVolume
 
-1. Delete directory Create another directory under 'independent-fileset-name'/'snapshot-name'/'pvc-name' `#BookKeeping` `#ReferenceCount`
+1. Delete directory Create another directory under 'independent-fileset-name'/'snapshot-name'/'pv-name' `#BookKeeping` `#ReferenceCount`
 snapshot name needs to be derived from path given in VolumeHandle
 2. Delete 'independent-fileset-name'/'snapshot-name' if empty
 3. Delete the snapshot 'snapshot-name' if there is no snapshot or volume-name directory. This must be already there
