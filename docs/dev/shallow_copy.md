@@ -5,7 +5,7 @@ new volume by copying content of snapshot and then mount that volume for
 workloads.
 
 IBM Storage Scale exposes snapshots as special, read-only directories
-located in `<fileset>/.snapshots`. IBM Storage Scale CSI can already provision
+located in `'fileset'/.snapshots`. IBM Storage Scale CSI can already provision
 writable volumes with snapshots as their data source, where snapshot contents
 are cloned to the newly created volume. However, cloning a snapshot to
 volume is a very expensive operation as the data needs to be fully copied.
@@ -81,7 +81,7 @@ Not supported
 
 ### `VolumeClone`
 
-Can be supported
+Can be supported. Return not supported for now.
 
 ### `Subdir/fsGroup/SELinux`
 
@@ -89,40 +89,52 @@ Will fail if dir does not exist since snapshot is readOnly
 
 ### `NodePublishVolume`, `NodeUnpublishVolume`
 
-Bind mount snapshot path in volumeHandle to kubelet path
+Bind mount snapshot path in volumeHandle to kubelet path. This should not require any code changes
 
 ### `NodeGetVolumeStats`
 
-Not supported
+Not supported.
 
 ### `Volume Handle`
-version-1 VolumeHandle: 0;3;<clusterID>;<fsuid>;<independent-fileset-name>;<snapshot-name>;<Complete Path = /ibm/fs0/xxx-ns/.snapshots/snapshot-name/pvc-name/pvc-name-data
-version-2 VolumeHandle: 1;3;<clusterID>;<fsuid>;<independent-fileset-name>;<snapshot-name>;<Complete Path> = /ibm/fs0/xxx-ns/.snapshots/snapshot-name/pvc-name/pvc-name-data
-  
-  Volume Handle:    1;1;4033149527292681937;5D3D0B0A:64509FB6;4c6db64a-32ea-4c7a-9768-a387539af470-default;pvc-5cf0ed9b-6b58-4313-8442-8df57bed6229;/ibm/fs0/4c6db64a-32ea-4c7a-9768-a387539af470-default/pvc-5cf0ed9b-6b58-4313-8442-8df57bed6229
-  Snapshot Handle:  1;1;4033149527292681937;5D3D0B0A:64509FB6;4c6db64a-32ea-4c7a-9768-a387539af470-default;pvc-5cf0ed9b-6b58-4313-8442-8df57bed6229;snapshot-b515a1c2-9fe6-47df-9a86-10a20b7965c6;snapshot-b515a1c2-9fe6-47df-9a86-10a20b7965c6
 
-
-  Volume Handle:    0;2;4033149527292681937;5D3D0B0A:64509FB6;;pvc-f6cd98ac-e1f0-4911-888d-931889dff379;/ibm/fs0/spectrum-scale-csi-volume-store/.volumes/pvc-f6cd98ac-e1f0-4911-888d-931889dff379
-  Snapshot Handle:  0;2;4033149527292681937;5D3D0B0A:64509FB6;;pvc-f6cd98ac-e1f0-4911-888d-931889dff379;snapshot-b4f6236f-01e4-4c67-9bf5-39ec0969c9f9;;pvc-f6cd98ac-e1f0-4911-888d-931889dff379-data
+version-1 VolumeHandle: 0;3;'clusterID';'fsuid';'independent-fileset-name';'volume-name';'Complete Path = /ibm/fs0/ind_fileset/.snapshots/snapshot-name/pvc-name/pvc-name-data
+version-2 VolumeHandle: 1;3;'clusterID';'fsuid';'CG Name';'volume-name';'Complete Path' = /ibm/fs0/xxx-ns/.snapshots/snapshot-name/pvc-name
 
 ### Book Keeping
 
 ## VolumeCreate
 
-1. Check if snapshot exist
-2. Create directory under <independent-fileset-name> with the name <snapshot name>
-3. Create another directory under <independent-fileset-name>/<snapshot-name>/<volume-name>
-4. Return volume handle with path /ibm/fs1/<<independent-fileset-name>>/.snapshots/<snapshot-name>/<src-pvc-name>
+1. Check if snapshot exist. Snapshot details will be in createVolume request. We need snapshot(independent fileset / CG fileset) and not the snapshot representing pvc which needs be extracted from create volume request
+
+for example -
+
+a. Version 1 snapshot handle will look like following. we need snapshot name = snapshot-b4f6236f-01e4-4c67-9bf5-39ec0969c9f9
+0;2;4033149527292681937;5D3D0B0A:64509FB6;;pvc-f6cd98ac-e1f0-4911-888d-931889dff379;snapshot-b4f6236f-01e4-4c67-9bf5-39ec0969c9f9;;pvc-f6cd98ac-e1f0-4911-888d-931889dff379-data
+b. Version 2 snapshot handle will look like following. we need snapshot name = snapshot-b515a1c2-9fe6-47df-9a86-10a20b7965c6
+1;1;4033149527292681937;5D3D0B0A:64509FB6;4c6db64a-32ea-4c7a-9768-a387539af470-default;pvc-5cf0ed9b-6b58-4313-8442-8df57bed6229;snapshot-b515a1c2-9fe6-47df-9a86-10a20b7965c6;snapshot-b515a1c2-9fe6-47df-9a86-10a20b7965c6
+2. Create directory under "independent-fileset-name" with the name 'snapshot name'
+3. Create another directory under 'independent-fileset-name'/'snapshot-name'/'volume-name'
+4. Return volume handle with path /ibm/fs1/'independent-fileset-name'/.snapshots/'snapshot-name'/'src-volume-path'
+From above snapshotHandle src-volume-path is pvc-5cf0ed9b-6b58-4313-8442-8df57bed6229 for version 2 and pvc-f6cd98ac-e1f0-4911-888d-931889dff379/pvc-f6cd98ac-e1f0-4911-888d-931889dff379-data for version 1
 
 ## VolumeDelete
 
-1. Delete directory Create another directory under <independent-fileset-name>/<snapshot-name>/<volume-name>
-2. Delete <independent-fileset-name>/<snapshot-name> if empty
+1. Delete directory Create another directory under 'independent-fileset-name'/'snapshot-name'/'pvc-name'
+snapshot name needs to be derived from path given in VolumeHandle
+2. Delete 'independent-fileset-name'/'snapshot-name' if empty
+3. Delete the snapshot 'snapshot-name' if there is no snapshot or volume-name directory. This must be already there
 Note: We must have mutex to create and delete directory
+4. Delete the independent fileset if there are no snapshot of dependent fileset. This must be already there
 
 ## Snapshot Delete
 
 1. Check if independent-fileset/snapshot-name directory exist and empty
 2. If empty then delete snapshot else return error saying reference exists
 
+## StorageClass
+
+Ideally user will create with with AccessMode=ReadOnlyMany with same storageClass as of source pvc and if there is different then it might not cause issue but to keep it simple and alined we will mandate following
+
+1. Version must be same
+2. VolumeBackend must be same
+3. FilesetType must be same in case of version1
