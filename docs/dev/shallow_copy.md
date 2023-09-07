@@ -194,7 +194,7 @@ parameters:
   snapWindow: "30"
   ```
 
-**5. Create VolumeSnaphost**
+**5. Create VolumeSnapshot**
 
 ```
 apiVersion: snapshot.storage.k8s.io/v1
