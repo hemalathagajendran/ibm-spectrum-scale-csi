@@ -1023,6 +1023,8 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	mutableParams := req.GetMutableParameters()
 	var targetPath string
 	cacheVolId := &cacheVolumeId{}
+	cacheVolId.S3TuningParams = make(map[string]interface{})
+	cacheVolId.NfsTuningParams = make(map[string]interface{})
 	if scaleVol.VolumeType == cacheVolume {
 		// Validate the secret data in case of cache volumes
 		missingKeys, isNfsSupported, err := validateCacheSecret(ctx, req.Secrets)
@@ -1035,18 +1037,6 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 			cacheVolId.NfsInfo = req.Secrets
 		} else {
 			cacheVolId.BucketInfo = req.Secrets
-		}
-
-		// A gateway node is must for cache fileset
-		gatewayNodeName, err := scaleVol.Connector.GetGatewayNode(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if gatewayNodeName != "" {
-			cacheVolId.GateWayNode = gatewayNodeName
-			klog.Infof("[%s]  IBM Storage Scale gateway NodeName : %s", loggerId, gatewayNodeName)
-		} else {
-			return nil, status.Error(codes.Aborted, "Failed to the create a cache volume as there in no gateway node in the cluster")
 		}
 	}
 
@@ -1231,6 +1221,19 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 
 	cs.Driver.reqmap[scaleVol.VolName] = int64(scaleVol.VolSize) // #nosec G115 -- false positive
 	defer delete(cs.Driver.reqmap, scaleVol.VolName)
+
+	if scaleVol.VolumeType == cacheVolume {
+		gatewayNodeName, err := scaleVol.Connector.GetGatewayNode(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if gatewayNodeName != "" {
+			cacheVolId.GateWayNode = gatewayNodeName
+			klog.Infof("[%s]  IBM Storage Scale gateway NodeName : %s", loggerId, gatewayNodeName)
+		} else {
+			return nil, status.Error(codes.Aborted, "Failed to the create a cache volume as there in no gateway node in the cluster")
+		}
+	}
 
 	if scaleVol.IsStaticPVBased {
 		klog.Infof("[%s] CreateVolume staticPV true  with scaleVol:[ %v ], filesetName:[ %s ]", loggerId, scaleVol, filesetName)
