@@ -802,9 +802,7 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 
 		case connectors.AfmReadSparseThreshold:
 			afmReadSparseThresholdValue, _ := strconv.Atoi(vacValue)
-			if strings.Compare(vacKey, connectors.AfmReadSparseThreshold) != 0 {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmReadSparseThreshold))
-			} else if afmReadSparseThresholdValue < 0 || afmReadSparseThresholdValue > refreshInterval {
+			if afmReadSparseThresholdValue < 0 || afmReadSparseThresholdValue > refreshInterval {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmReadSparseThreshold))
 			} else {
 				cacheVolId.S3TuningParams[vacKey] = vacValue
@@ -812,9 +810,7 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 
 		case connectors.AfmNumFlushThreads:
 			afmNumFlushThreadsValue, _ := strconv.Atoi(vacValue)
-			if strings.Compare(vacKey, connectors.AfmNumFlushThreads) != 0 {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmNumFlushThreads))
-			} else if afmNumFlushThreadsValue < 1 || afmNumFlushThreadsValue > 1024 {
+			if afmNumFlushThreadsValue < 1 || afmNumFlushThreadsValue > 1024 {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmNumFlushThreads))
 			} else {
 				cacheVolId.S3TuningParams[vacKey] = vacValue
@@ -822,18 +818,14 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 
 		case connectors.AfmPrefetchThreshold:
 			afmPrefetchThresholdValue, _ := strconv.Atoi(vacValue)
-			if strings.Compare(vacKey, connectors.AfmPrefetchThreshold) != 0 {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmPrefetchThreshold))
-			} else if afmPrefetchThresholdValue < 0 || afmPrefetchThresholdValue > 100 {
+			if afmPrefetchThresholdValue < 0 || afmPrefetchThresholdValue > 100 {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmPrefetchThreshold))
 			} else {
 				cacheVolId.S3TuningParams[vacKey] = vacValue
 			}
 
 		case connectors.AfmObjectFastReaddir:
-			if strings.Compare(vacKey, connectors.AfmObjectFastReaddir) != 0 {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmObjectFastReaddir))
-			} else if !(vacValue == "no" || vacValue == "yes") {
+			if !(vacValue == "no" || vacValue == "yes") {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmObjectFastReaddir))
 			} else {
 				cacheVolId.S3TuningParams[vacKey] = vacValue
@@ -841,9 +833,7 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 
 		case connectors.AfmFileOpenRefreshInterval:
 			afmFileOpenRefreshIntervalValue, _ := strconv.Atoi(vacValue)
-			if strings.Compare(vacKey, connectors.AfmFileOpenRefreshInterval) != 0 {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmFileOpenRefreshInterval))
-			} else if afmFileOpenRefreshIntervalValue < 0 || afmFileOpenRefreshIntervalValue > refreshInterval {
+			if afmFileOpenRefreshIntervalValue < 0 || afmFileOpenRefreshIntervalValue > refreshInterval {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmFileOpenRefreshInterval))
 			} else {
 				cacheVolId.S3TuningParams[vacKey] = vacValue
@@ -852,9 +842,7 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 
 		case connectors.AfmDirLookupRefreshInterval:
 			afmDirLookupRefreshIntervalValue, _ := strconv.Atoi(vacValue)
-			if strings.Compare(vacKey, connectors.AfmDirLookupRefreshInterval) != 0 {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmDirLookupRefreshInterval))
-			} else if afmDirLookupRefreshIntervalValue < 0 || afmDirLookupRefreshIntervalValue > refreshInterval {
+			if afmDirLookupRefreshIntervalValue < 0 || afmDirLookupRefreshIntervalValue > refreshInterval {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmDirLookupRefreshInterval))
 			} else {
 				cacheVolId.NfsTuningParams[vacKey] = vacValue
@@ -862,9 +850,7 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 
 		case connectors.AfmDirOpenRefreshInterval:
 			afmDirOpenRefreshIntervalValue, _ := strconv.Atoi(vacValue)
-			if strings.Compare(vacKey, connectors.AfmDirOpenRefreshInterval) != 0 {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmDirOpenRefreshInterval))
-			} else if afmDirOpenRefreshIntervalValue < 0 || afmDirOpenRefreshIntervalValue > refreshInterval {
+			if afmDirOpenRefreshIntervalValue < 0 || afmDirOpenRefreshIntervalValue > refreshInterval {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmDirOpenRefreshInterval))
 			} else {
 				cacheVolId.NfsTuningParams[vacKey] = vacValue
@@ -872,16 +858,32 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 
 		case connectors.AfmFileLookupRefreshInterval:
 			afmFileLookupRefreshIntervalValue, _ := strconv.Atoi(vacValue)
-			if strings.Compare(vacKey, connectors.AfmFileLookupRefreshInterval) != 0 {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmFileLookupRefreshInterval))
-			} else if afmFileLookupRefreshIntervalValue < 0 || afmFileLookupRefreshIntervalValue > refreshInterval {
+			if afmFileLookupRefreshIntervalValue < 0 || afmFileLookupRefreshIntervalValue > refreshInterval {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmFileLookupRefreshInterval))
 			} else {
 				cacheVolId.NfsTuningParams[vacKey] = vacValue
 			}
 
 		default:
-			klog.Infof("[%s] parameter configured in vac is not in default supported list", loggerId)
+			if vacKey != connectors.AfmReadSparseThreshold {
+				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmReadSparseThreshold))
+			} else if vacKey != connectors.AfmNumFlushThreads {
+				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmNumFlushThreads))
+			} else if vacKey != connectors.AfmPrefetchThreshold {
+				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmPrefetchThreshold))
+			} else if vacKey != connectors.AfmObjectFastReaddir {
+				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmObjectFastReaddir))
+			} else if vacKey != connectors.AfmFileOpenRefreshInterval {
+				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmFileOpenRefreshInterval))
+			} else if vacKey != connectors.AfmDirLookupRefreshInterval {
+				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmDirLookupRefreshInterval))
+			} else if vacKey != connectors.AfmDirOpenRefreshInterval {
+				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmDirOpenRefreshInterval))
+			} else if vacKey != connectors.AfmFileLookupRefreshInterval {
+				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmFileLookupRefreshInterval))
+			} else {
+				klog.Infof("[%s] parameter configured in vac is not in default supported list", loggerId)
+			}
 		}
 	}
 	return nil
@@ -1013,7 +1015,6 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 				filesetName = fsetNameFrmVac
 				klog.Infof("[%s] volume:[%v] -  IBM Storage Scale volume create filesetName has been provided from VolumeAttributeClass filesetName:[ %s ]\n", loggerId, scaleVol.VolName, filesetName)
 			}
-
 		} else {
 			return nil, status.Error(codes.InvalidArgument, "Creating volume with volume attribute class is not supported")
 		}
