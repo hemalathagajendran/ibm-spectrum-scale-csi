@@ -622,8 +622,8 @@ type CreateFilesetRequest struct {
 	IamMode                      string `json:"iamMode,omitempty"`
 	AfmTarget                    string `json:"afmTarget,omitempty"`
 	AfmAsyncDelay                string `json:"afmAsyncDelay,omitempty"`
-	AfmDirLookupRefreshInterval  string    `json:"afmDirLookupRefreshInterval,omitempty"`
-	AfmDirOpenRefreshInterval    string    `json:"afmDirOpenRefreshInterval,omitempty"`
+	AfmDirLookupRefreshInterval  string `json:"afmDirLookupRefreshInterval,omitempty"`
+	AfmDirOpenRefreshInterval    string `json:"afmDirOpenRefreshInterval,omitempty"`
 	AfmEnableAutoEviction        string `json:"afmEnableAutoEviction,omitempty"`
 	AfmExpirationTimeout         string `json:"afmExpirationTimeout,omitempty"`
 	AfmFileLookupRefreshInterval string `json:"afmFileLookupRefreshInterval,omitempty"`
@@ -639,7 +639,7 @@ type CreateFilesetRequest struct {
 	AfmShowHomeSnapshots         string `json:"afmShowHomeSnapshots,omitempty"`
 	AfmReadSparseThreshold       string `json:"afmReadSparseThreshold,omitempty"`
 	AfmObjectFastReaddir         string `json:"afmObjectFastReaddir,omitempty"`
-	AfmFileOpenRefreshInterval   string    `json:"afmFileOpenRefreshInterval,omitempty"`
+	AfmFileOpenRefreshInterval   string `json:"afmFileOpenRefreshInterval,omitempty"`
 }
 
 type CreateS3CacheFilesetRequest struct {

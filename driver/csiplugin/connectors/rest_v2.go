@@ -536,12 +536,12 @@ func (s *SpectrumRestV2) UpdateFileset(ctx context.Context, filesystemName strin
 		filesetreq.Comment = fmt.Sprintf("%v", comment)
 	}
 
-	if volType == cacheVolumeType && setAfmAttributes != ""{
-		if setAfmAttributes == "NFS" {
+	if volType == cacheVolumeType && setAfmAttributes != "" {
+		if setAfmAttributes == settings.NfsCache {
 			updateFilesetWithNfsTuningParams(ctx, &filesetreq, opts)
-		} else if setAfmAttributes == "S3" {
+		} else if setAfmAttributes == settings.S3Cache {
 			updateFilesetWithS3TuningParams(ctx, &filesetreq, opts)
-		}else{
+		} else {
 			klog.Infof("[%s] no vac parameters provided for cache volume", utils.GetLoggerId(ctx))
 		}
 	}
@@ -568,7 +568,7 @@ func (s *SpectrumRestV2) UpdateFileset(ctx context.Context, filesystemName strin
 	return nil
 }
 
-func updateFilesetWithNfsTuningParams(ctx context.Context, filesetreq *CreateFilesetRequest, opts map[string]interface{}){
+func updateFilesetWithNfsTuningParams(ctx context.Context, filesetreq *CreateFilesetRequest, opts map[string]interface{}) {
 
 	afmDirLookupRefreshIntervalValue, afmDirLookupRefreshIntervalFound := opts[AfmDirLookupRefreshInterval]
 	if afmDirLookupRefreshIntervalFound {
@@ -599,7 +599,7 @@ func updateFilesetWithNfsTuningParams(ctx context.Context, filesetreq *CreateFil
 	}
 }
 
-func updateFilesetWithS3TuningParams(ctx context.Context, filesetreq *CreateFilesetRequest, opts map[string]interface{}){
+func updateFilesetWithS3TuningParams(ctx context.Context, filesetreq *CreateFilesetRequest, opts map[string]interface{}) {
 	afmReadSparseThresholdValue, afmReadSparseThresholdFound := opts[AfmReadSparseThreshold]
 	if afmReadSparseThresholdFound {
 		filesetreq.AfmReadSparseThreshold = afmReadSparseThresholdValue.(string)
