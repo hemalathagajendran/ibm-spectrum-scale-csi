@@ -3434,6 +3434,7 @@ func (cs *ScaleControllerServer) CreateSnapshot(newctx context.Context, req *csi
 	}
 	snapName, createNewSnap, err := cs.CheckIfNewSnapshotIsRequired(ctx, conn, filesystemName, filesetName, filesetResp.FilesetName, snapName, volumeIDMembers.StorageClassType, snapWindowInt, snapExist)
 	if err != nil {
+
 		return nil, err
 	}
 	if createNewSnap {
@@ -3521,6 +3522,14 @@ func (cs *ScaleControllerServer) CheckIfNewSnapshotIsRequired(ctx context.Contex
 			if cgSnapName != "" {
 				usable, err := cs.isExistingSnapUseableForVol(ctx, conn, filesystemName, filesetName, fsetName, cgSnapName)
 				if !usable {
+					pathDir := fmt.Sprintf("%s/.snapshots/%s", consistencyGroup, cgSnapName)
+					_, err := conn.StatDirectory(ctx, filesystemName, pathDir)
+					if err != nil {
+						if strings.Contains(err.Error(), "EFSSG0264C") ||
+							strings.Contains(err.Error(), "does not exist") { // directory does not exist
+							return snapName, createNewSnap, nil
+						}
+					}
 					return snapName, createNewSnap, err
 				}
 				createNewSnap = false
