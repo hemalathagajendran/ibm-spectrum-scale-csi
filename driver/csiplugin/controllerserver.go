@@ -3520,9 +3520,9 @@ func (cs *ScaleControllerServer) CheckIfNewSnapshotIsRequired(ctx context.Contex
 				return snapName, createNewSnap, err
 			}
 			if cgSnapName != "" {
-				usable, err := cs.isExistingSnapUseableForVol(ctx, conn, filesystemName, filesetName, fsetName, cgSnapName)
+				usable, _ := cs.isExistingSnapUseableForVol(ctx, conn, filesystemName, filesetName, fsetName, cgSnapName)
 				if !usable {
-					pathDir := fmt.Sprintf("%s/.snapshots/%s", consistencyGroup, cgSnapName)
+					pathDir := fmt.Sprintf("%s/.snapshots/%s", filesetName, cgSnapName)
 					_, err := conn.StatDirectory(ctx, filesystemName, pathDir)
 					if err != nil {
 						if strings.Contains(err.Error(), "EFSSG0264C") ||
