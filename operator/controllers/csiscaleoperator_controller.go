@@ -1968,7 +1968,7 @@ func (r *CSIScaleOperatorReconciler) newConnector(ctx context.Context, instance 
 // isLocalGUIHost returns true if the host is a GUI host of a local cluster
 // and returns false if the host is a GUI host of a remote cluster.
 func isLocalGUIHost(host string) bool {
-	var guiRoutePrefix = config.ScaleGUIRoafmFileute + "-" + config.ScaleProduct
+	var guiRoutePrefix = config.ScaleGUIRoute + "-" + config.ScaleProduct
 	// the GUI service
 	var guiService = config.ScaleGUIService
 	if strings.HasPrefix(host, guiRoutePrefix) || strings.HasPrefix(host, guiService) {
