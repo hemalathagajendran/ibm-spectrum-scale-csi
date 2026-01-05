@@ -83,6 +83,7 @@ type CSIEnvConfigs struct {
 	CsiResizer           string
 	CsiDriver            string
 	ShortNameNodeMapping string
+	K8sversion           string
 }
 
 type csiNodeSyncer struct {

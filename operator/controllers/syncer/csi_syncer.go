@@ -52,6 +52,12 @@ const (
 	EnvVarForCSIProvisionerImage = "CSI_PROVISIONER_IMAGE"
 	EnvVarForCSISnapshotterImage = "CSI_SNAPSHOTTER_IMAGE"
 	EnvVarForCSIResizerImage     = "CSI_RESIZER_IMAGE"
+
+	K8134 = "v1.34.0"
+	K8134ProvisionerImage = "registry.k8s.io/sig-storage/csi-provisioner@sha256:0c537015fe9cf9d53d79d0181e17a78ee784303cd46bf957016605488f212327"
+	K8ProvisionerImage = "registry.k8s.io/sig-storage/csi-provisioner@sha256:bb057f866177d5f4139a1527e594499cbe0feeb67b63aaca8679dfdf0a6016f9"
+	K8134ResizerImage = "registry.k8s.io/sig-storage/csi-resizer@sha256:4a95d94e57ad82f6977cd8d4fdcfcfc0b83f02d990e4e7715b688c20970a906d"
+	K8ResizerImage = "registry.k8s.io/sig-storage/csi-resizer@sha256:5e7cbb63fd497fa913caa21fee1a69f727c220c6fa83c5f8bb0995e2ad73a474"
 )
 
 // var csiLog = log.Log.WithName("csiscaleoperator_syncer")
@@ -779,6 +785,14 @@ func (s *csiControllerSyncer) ensureVolumes() []corev1.Volume {
 func (s *csiControllerSyncer) getSidecarImage(ctx context.Context, name string, CSIEnvConfig CSIEnvConfigs) string {
 	logger := csiLog.FromContext(ctx).WithName("getSidecarImage")
 	logger.Info("Fetching image for sidecar container.", "ContainerName", name)
+
+	if CSIEnvConfig.K8sversion >= K8134 {
+		s.driver.Spec.Provisioner = K8134ProvisionerImage
+		s.driver.Spec.Resizer = K8134ResizerImage
+	}else{
+		s.driver.Spec.Provisioner = K8ProvisionerImage
+		s.driver.Spec.Resizer = K8ResizerImage
+	}
 
 	image := ""
 	switch name {

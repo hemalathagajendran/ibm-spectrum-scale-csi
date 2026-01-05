@@ -2556,7 +2556,7 @@ func (cs *ScaleControllerServer) ControllerModifyVolume(ctx context.Context, req
 	loggerId := utils.GetLoggerId(ctx)
 	afmTuningParams := make(map[string]interface{})
 
-	klog.Infof("[%s] ControllerModifyVolume - Volume modify req: %v", loggerId, req)
+	klog.Infof("[%s] ControllerModifyVolume - Volume modify req: %+v", loggerId, req)
 	klog.Infof("[%s] ControllerModifyVolume - Number of param: %v", loggerId, len(req.MutableParameters))
 
 	if err := cs.Driver.ValidateControllerServiceRequest(ctx, csi.ControllerServiceCapability_RPC_MODIFY_VOLUME); err != nil {
@@ -2610,6 +2610,16 @@ func (cs *ScaleControllerServer) ControllerModifyVolume(ctx context.Context, req
 		klog.Infof("ControllerModifyVolume: Fileset [%v] is not created by IBM Container Storage Interface driver, means staticVolume", filesetName)
 		isStaticPVBased = true
 	}
+
+	cacheVolId := &cacheVolumeId{}
+	cacheVolId.S3TuningParams = make(map[string]interface{})
+	cacheVolId.NfsTuningParams = make(map[string]interface{})
+	if strings.Contains(filesetInfo.AFM.AFMTarget, "nfs:") {
+		cacheVolId.IsNfsSupported = true
+	}else{
+		cacheVolId.IsNfsSupported = false
+	}
+
 	if len(mutableParams) > 0 {
 		if isStaticPVBased {
 			if _, ok := mutableParams["filesetName"]; ok {
@@ -2627,12 +2637,10 @@ func (cs *ScaleControllerServer) ControllerModifyVolume(ctx context.Context, req
 	}
 
 	setAfmAttributes := ""
-	if len(cacheVolId.NfsTuningParams) > 0 {
+	if len(cacheVolId.NfsTuningParams) > 0 && cacheVolId.IsNfsSupported {
 		setAfmAttributes = settings.NfsCache
 		afmTuningParams = cacheVolId.NfsTuningParams
-	}
-
-	if len(cacheVolId.S3TuningParams) > 0 {
+	}else if len(cacheVolId.S3TuningParams) > 0 {
 		setAfmAttributes = settings.S3Cache
 		afmTuningParams = cacheVolId.S3TuningParams
 	}

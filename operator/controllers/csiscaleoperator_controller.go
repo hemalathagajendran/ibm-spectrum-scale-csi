@@ -359,12 +359,17 @@ func (r *CSIScaleOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// if !clusterConfigTypeExists || !cnsaOperatorPresenceExists {
 	logger.V(4).Info("Checking the clusterType and presence of CNSA")
-	err = getClusterTypeAndCNSAOperatorPresence(ctx, inClusterScaleGui, r)
+	k8version, err := getClusterTypeAndCNSAOperatorPresence(ctx, inClusterScaleGui, r)
 	if err != nil {
 		logger.Error(err, "Failed to check cluster platform and cnsa presence")
 		return ctrl.Result{}, err
 	}
 	// }
+
+	if k8version != ""{
+		r.CSIEnvConfig.K8sversion = k8version
+	}
+
 	logger.Info("clusterTypeData values", "clusterTypeData", clusterTypeData)
 	logger.V(4).Info("CSI environment variables are found successfully", "CSIConfig", r.CSIEnvConfig)
 
@@ -1963,7 +1968,7 @@ func (r *CSIScaleOperatorReconciler) newConnector(ctx context.Context, instance 
 // isLocalGUIHost returns true if the host is a GUI host of a local cluster
 // and returns false if the host is a GUI host of a remote cluster.
 func isLocalGUIHost(host string) bool {
-	var guiRoutePrefix = config.ScaleGUIRoute + "-" + config.ScaleProduct
+	var guiRoutePrefix = config.ScaleGUIRoafmFileute + "-" + config.ScaleProduct
 	// the GUI service
 	var guiService = config.ScaleGUIService
 	if strings.HasPrefix(host, guiRoutePrefix) || strings.HasPrefix(host, guiService) {
@@ -2517,7 +2522,7 @@ func isGUIUnauthorized(err error) bool {
 
 // getClusterTypeAndCNSAOperatorPresence fetches CNSA operator deployment from the cluster
 // and sets two parameters in the clusterTypeData map which is being set later in environment of the driver
-func getClusterTypeAndCNSAOperatorPresence(ctx context.Context, inClusterScaleGui string, r *CSIScaleOperatorReconciler) (err error) {
+func getClusterTypeAndCNSAOperatorPresence(ctx context.Context, inClusterScaleGui string, r *CSIScaleOperatorReconciler) (string, error) {
 
 	// Checking the presence of CNSA operator into the cluster
 	logger := csiLog.FromContext(ctx).WithName("getClusterTypeAndCNSAOperatorPresence")
@@ -2525,6 +2530,7 @@ func getClusterTypeAndCNSAOperatorPresence(ctx context.Context, inClusterScaleGu
 	// Default env/cluster type setup
 	clusterTypeData[config.ENVClusterConfigurationType] = config.ENVClusterTypeKubernetes
 	clusterTypeData[config.ENVClusterCNSAPresenceCheck] = "False"
+	var k8sVersion string
 
 	if inClusterScaleGui != "" {
 		// When inClusterScaleGui is set, it means CNSA dev setup is being used
@@ -2537,15 +2543,23 @@ func getClusterTypeAndCNSAOperatorPresence(ctx context.Context, inClusterScaleGu
 		inClusterConfig, err := rest.InClusterConfig()
 		if err != nil {
 			logger.Error(err, "Failed to set inclusterconfig instance")
-			return err
+			return "", err
 		}
 
 		// create the clientset
 		clientset, err := kubernetes.NewForConfig(inClusterConfig)
 		if err != nil {
 			logger.Error(err, "Failed to set clientset with config")
-			return err
+			return "", err
 		}
+
+		version, err := clientset.Discovery().ServerVersion()
+        if err != nil {
+            logger.Error(err, "Failed to get server version")
+			return "", err
+        }
+		logger.Info(fmt.Sprintf("kubernetes server version:%s", version.GitVersion))
+		k8sVersion = version.GitVersion
 
 		found := false
 		for _, ns := range namespaces {
@@ -2557,7 +2571,7 @@ func getClusterTypeAndCNSAOperatorPresence(ctx context.Context, inClusterScaleGu
 					continue
 				}
 				logger.Error(err, "Failed to list CNSA operator deployment in the namespace", "namespace", ns)
-				return err
+				return k8sVersion, err
 			}
 
 			for _, deployment := range deployments.Items {
@@ -2582,12 +2596,12 @@ func getClusterTypeAndCNSAOperatorPresence(ctx context.Context, inClusterScaleGu
 	// Checking if the cluster is OpenShift or not
 	isOpenShift, err := IsOpenShift(ctx, r.Client)
 	if err != nil {
-		return err
+		return k8sVersion, err
 	}
 	if isOpenShift {
 		clusterTypeData[config.ENVClusterConfigurationType] = config.ENVClusterTypeOpenshift
 	}
-	return nil
+	return k8sVersion, nil
 }
 
 // IsOpenShift returns (true, nil) if OpenShift API resources are available.
