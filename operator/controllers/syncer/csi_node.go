@@ -84,6 +84,7 @@ type CSIEnvConfigs struct {
 	CsiDriver            string
 	ShortNameNodeMapping string
 	K8sversion           string
+	IsCNSADeployment 	 bool
 }
 
 type csiNodeSyncer struct {

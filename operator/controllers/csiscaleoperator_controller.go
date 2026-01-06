@@ -359,7 +359,7 @@ func (r *CSIScaleOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	// if !clusterConfigTypeExists || !cnsaOperatorPresenceExists {
 	logger.V(4).Info("Checking the clusterType and presence of CNSA")
-	k8version, err := getClusterTypeAndCNSAOperatorPresence(ctx, inClusterScaleGui, r)
+	k8version, isCnsa, err := getClusterTypeAndCNSAOperatorPresence(ctx, inClusterScaleGui, r)
 	if err != nil {
 		logger.Error(err, "Failed to check cluster platform and cnsa presence")
 		return ctrl.Result{}, err
@@ -368,6 +368,7 @@ func (r *CSIScaleOperatorReconciler) Reconcile(ctx context.Context, req ctrl.Req
 
 	if k8version != ""{
 		r.CSIEnvConfig.K8sversion = k8version
+		r.CSIEnvConfig.IsCNSADeployment = isCnsa
 	}
 
 	logger.Info("clusterTypeData values", "clusterTypeData", clusterTypeData)
@@ -2524,7 +2525,7 @@ func isGUIUnauthorized(err error) bool {
 
 // getClusterTypeAndCNSAOperatorPresence fetches CNSA operator deployment from the cluster
 // and sets two parameters in the clusterTypeData map which is being set later in environment of the driver
-func getClusterTypeAndCNSAOperatorPresence(ctx context.Context, inClusterScaleGui string, r *CSIScaleOperatorReconciler) (string, error) {
+func getClusterTypeAndCNSAOperatorPresence(ctx context.Context, inClusterScaleGui string, r *CSIScaleOperatorReconciler) (string, bool, error) {
 
 	// Checking the presence of CNSA operator into the cluster
 	logger := csiLog.FromContext(ctx).WithName("getClusterTypeAndCNSAOperatorPresence")
@@ -2533,6 +2534,7 @@ func getClusterTypeAndCNSAOperatorPresence(ctx context.Context, inClusterScaleGu
 	clusterTypeData[config.ENVClusterConfigurationType] = config.ENVClusterTypeKubernetes
 	clusterTypeData[config.ENVClusterCNSAPresenceCheck] = "False"
 	var k8sVersion string
+	isCnsa := false
 
 	if inClusterScaleGui != "" {
 		// When inClusterScaleGui is set, it means CNSA dev setup is being used
@@ -2545,20 +2547,20 @@ func getClusterTypeAndCNSAOperatorPresence(ctx context.Context, inClusterScaleGu
 		inClusterConfig, err := rest.InClusterConfig()
 		if err != nil {
 			logger.Error(err, "Failed to set inclusterconfig instance")
-			return "", err
+			return "", isCnsa, err
 		}
 
 		// create the clientset
 		clientset, err := kubernetes.NewForConfig(inClusterConfig)
 		if err != nil {
 			logger.Error(err, "Failed to set clientset with config")
-			return "", err
+			return "", isCnsa, err
 		}
 
 		version, err := clientset.Discovery().ServerVersion()
         if err != nil {
             logger.Error(err, "Failed to get server version")
-			return "", err
+			return "", isCnsa, err
         }
 		logger.Info(fmt.Sprintf("kubernetes server version:%s", version.GitVersion))
 		k8sVersion = version.GitVersion
@@ -2573,7 +2575,7 @@ func getClusterTypeAndCNSAOperatorPresence(ctx context.Context, inClusterScaleGu
 					continue
 				}
 				logger.Error(err, "Failed to list CNSA operator deployment in the namespace", "namespace", ns)
-				return k8sVersion, err
+				return k8sVersion, isCnsa, err
 			}
 
 			for _, deployment := range deployments.Items {
@@ -2581,6 +2583,7 @@ func getClusterTypeAndCNSAOperatorPresence(ctx context.Context, inClusterScaleGu
 					logger.Info("CNSA deployment found", "namespace", ns, "deployment", deployment.GetName())
 					clusterTypeData[config.ENVClusterCNSAPresenceCheck] = "True"
 					found = true
+					isCnsa = true
 					break
 				}
 			}
@@ -2598,12 +2601,13 @@ func getClusterTypeAndCNSAOperatorPresence(ctx context.Context, inClusterScaleGu
 	// Checking if the cluster is OpenShift or not
 	isOpenShift, err := IsOpenShift(ctx, r.Client)
 	if err != nil {
-		return k8sVersion, err
+		return k8sVersion, isCnsa, err
 	}
 	if isOpenShift {
 		clusterTypeData[config.ENVClusterConfigurationType] = config.ENVClusterTypeOpenshift
+		isCnsa = true
 	}
-	return k8sVersion, nil
+	return k8sVersion, isCnsa, nil
 }
 
 // IsOpenShift returns (true, nil) if OpenShift API resources are available.
