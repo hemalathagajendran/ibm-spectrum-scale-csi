@@ -2638,7 +2638,7 @@ func (cs *ScaleControllerServer) ControllerModifyVolume(ctx context.Context, req
 			return nil, status.Error(codes.InvalidArgument, "ControllerModifyVolume: - Volume Attributes class is only supported for cacheVolumes and staticVolumes")
 		}
 	}
-	cacheVolId := &cacheVolumeId{}
+
 	err = validateVACParams(ctx, mutableParams, cacheVolId)
 	if err != nil {
 		return nil, err
