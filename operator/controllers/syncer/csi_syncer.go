@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-
+	"strings"
 	"reflect"
 
 	"github.com/IBM/ibm-spectrum-scale-csi/operator/controllers/config"
@@ -54,14 +54,10 @@ const (
 	EnvVarForCSIResizerImage     = "CSI_RESIZER_IMAGE"
 
 	K8134 = "v1.34.0"
-	K8134ProvisionerImage = "registry.k8s.io/sig-storage/csi-provisioner@sha256:0c537015fe9cf9d53d79d0181e17a78ee784303cd46bf957016605488f212327"
-	K8ProvisionerImage = "registry.k8s.io/sig-storage/csi-provisioner@sha256:bb057f866177d5f4139a1527e594499cbe0feeb67b63aaca8679dfdf0a6016f9"
-	K8134ResizerImage = "registry.k8s.io/sig-storage/csi-resizer@sha256:4a95d94e57ad82f6977cd8d4fdcfcfc0b83f02d990e4e7715b688c20970a906d"
-	K8ResizerImage = "registry.k8s.io/sig-storage/csi-resizer@sha256:5e7cbb63fd497fa913caa21fee1a69f727c220c6fa83c5f8bb0995e2ad73a474"
-	Cnsa134ProvisionerImage = "cp.icr.io/cp/gpfs/csi/csi-provisioner@sha256:0c537015fe9cf9d53d79d0181e17a78ee784303cd46bf957016605488f212327"
-	CnsaProvisionerImage = "cp.icr.io/cp/gpfs/csi/csi-provisioner@sha256:bb057f866177d5f4139a1527e594499cbe0feeb67b63aaca8679dfdf0a6016f9"
-	Cnsa134ResizerImage = "cp.icr.io/cp/gpfs/csi/csi-resizer@sha256:4a95d94e57ad82f6977cd8d4fdcfcfc0b83f02d990e4e7715b688c20970a906d"
-	CnsaResizerImage = "cp.icr.io/cp/gpfs/csi/csi-resizer@sha256:5e7cbb63fd497fa913caa21fee1a69f727c220c6fa83c5f8bb0995e2ad73a474"
+	K8134ProvisionerImageSha = "0c537015fe9cf9d53d79d0181e17a78ee784303cd46bf957016605488f212327"
+	K8ProvisionerImageSha = "bb057f866177d5f4139a1527e594499cbe0feeb67b63aaca8679dfdf0a6016f9"
+	K8134ResizerImageSha = "4a95d94e57ad82f6977cd8d4fdcfcfc0b83f02d990e4e7715b688c20970a906d"
+	K8ResizerImageSha = "5e7cbb63fd497fa913caa21fee1a69f727c220c6fa83c5f8bb0995e2ad73a474"
 )
 
 // var csiLog = log.Log.WithName("csiscaleoperator_syncer")
@@ -790,25 +786,6 @@ func (s *csiControllerSyncer) getSidecarImage(ctx context.Context, name string, 
 	logger := csiLog.FromContext(ctx).WithName("getSidecarImage")
 	logger.Info("Fetching image for sidecar container.", "ContainerName", name)
 
-
-	if CSIEnvConfig.IsCNSADeployment{
-		if CSIEnvConfig.K8sversion >= K8134 {
-			s.driver.Spec.Provisioner = Cnsa134ProvisionerImage
-			s.driver.Spec.Resizer = Cnsa134ResizerImage
-		}else{
-			s.driver.Spec.Provisioner = CnsaProvisionerImage
-			s.driver.Spec.Resizer = CnsaResizerImage
-		}
-	}else{
-		if CSIEnvConfig.K8sversion >= K8134 {
-			s.driver.Spec.Provisioner = K8134ProvisionerImage
-			s.driver.Spec.Resizer = K8134ResizerImage
-		}else{
-			s.driver.Spec.Provisioner = K8ProvisionerImage
-			s.driver.Spec.Resizer = K8ResizerImage
-		}
-	}
-
 	image := ""
 	switch name {
 	case config.CSIProvisioner:
@@ -821,6 +798,17 @@ func (s *csiControllerSyncer) getSidecarImage(ctx context.Context, name string, 
 			image = CSIEnvConfig.CsiProvisioner
 		} else {
 			image = s.driver.GetDefaultImage(name)
+		}
+
+		if strings.Contains(image, "@sha256:"){
+			provImage := strings.SplitAfter(image, "@sha256:")
+			if provImage != nil && len(provImage) > 1 {
+				if CSIEnvConfig.K8sversion >= K8134{
+					image = provImage[0] + K8134ProvisionerImageSha
+				} else{
+					image = provImage[0] + K8ProvisionerImageSha
+				}
+			}
 		}
 		logger.Info("Got image for", " provisioner: ", image)
 	case config.CSIAttacher:
@@ -857,6 +845,17 @@ func (s *csiControllerSyncer) getSidecarImage(ctx context.Context, name string, 
 			image = CSIEnvConfig.CsiResizer
 		} else {
 			image = s.driver.GetDefaultImage(name)
+		}
+
+		if strings.Contains(image, "@sha256:"){
+			resizerImage := strings.SplitAfter(image, "@sha256:")
+			if resizerImage != nil && len(resizerImage) > 1 {
+				if CSIEnvConfig.K8sversion >= K8134{
+					image = resizerImage[0] + K8134ResizerImageSha
+				} else{
+					image = resizerImage[0] + K8ResizerImageSha
+				}
+			}
 		}
 		logger.Info("Got image for", " resizer: ", image)
 	}
