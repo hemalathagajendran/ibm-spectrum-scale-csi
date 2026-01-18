@@ -810,12 +810,12 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 
 		if cacheVolId.IsNfsSupported{
 			nfsTuningParams := getNfsTuningParams(ctx)
-			if !utils.StringInSlice(vacKey, nfsTuningParams){
+			if !utils.ContainsString(vacKey, nfsTuningParams){
 				return status.Error(codes.Internal, fmt.Sprintf("Invalid nfs vac tuning parameter [%s] is provided. Please check case/parameter before providing in vac", vacKey))
 			}
 		}else{
 			s3TuningParams := getS3TuningParams(ctx)
-			if !utils.StringInSlice(vacKey, s3TuningParams){
+			if !utils.ContainsString(vacKey, s3TuningParams){
 				return status.Error(codes.Internal, fmt.Sprintf("Invalid s3 vac tuning parameter [%s] is provided. Please check case/parameter before providing in vac", vacKey))
 			}
 		}
