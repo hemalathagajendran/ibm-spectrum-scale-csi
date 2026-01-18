@@ -755,6 +755,15 @@ func updateComment(ctx context.Context, scVol *scaleVolume, cacheVolId *cacheVol
 	return scVol.Connector.UpdateFileset(ctx, scVol.VolBackendFs, scVol.StorageClassType, scVol.VolName, updateOpts, setAfmAttributes)
 }
 
+func getS3TuningParams(ctx context.Context)[]string{
+	return []string{connectors.AfmReadSparseThreshold, connectors.AfmNumFlushThreads, connectors.AfmPrefetchThreshold, connectors.AfmObjectFastReaddir, connectors.AfmFileOpenRefreshInterval}
+}
+
+
+func getNfsTuningParams(ctx context.Context)[]string{
+	return []string{connectors.AfmFileOpenRefreshInterval, connectors.AfmDirLookupRefreshInterval, connectors.AfmDirOpenRefreshInterval, connectors.AfmFileLookupRefreshInterval}
+}
+
 func (cs *ScaleControllerServer) getConnFromClusterID(ctx context.Context, cid string) (connectors.SpectrumScaleConnector, error) {
 	loggerId := utils.GetLoggerId(ctx)
 	connector, isConnPresent := cs.Driver.connmap[cid]
@@ -798,6 +807,18 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 	loggerId := utils.GetLoggerId(ctx)
 
 	for vacKey, vacValue := range mutableParams {
+
+		if cacheVolId.IsNfsSupported{
+			nfsTuningParams := getNfsTuningParams(ctx)
+			if !utils.StringInSlice(vacKey, nfsTuningParams){
+				return status.Error(codes.Internal, fmt.Sprintf("Invalid nfs vac tuning parameter [%s] is provided. Please check case/parameter before providing in vac", vacKey))
+			}
+		}else{
+			s3TuningParams := getS3TuningParams(ctx)
+			if !utils.StringInSlice(vacKey, s3TuningParams){
+				return status.Error(codes.Internal, fmt.Sprintf("Invalid s3 vac tuning parameter [%s] is provided. Please check case/parameter before providing in vac", vacKey))
+			}
+		}
 		switch vacKey {
 
 		case connectors.AfmReadSparseThreshold:
@@ -865,29 +886,13 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 			}
 
 		default:
-			if vacKey != connectors.AfmReadSparseThreshold {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmReadSparseThreshold))
-			} else if vacKey != connectors.AfmNumFlushThreads {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmNumFlushThreads))
-			} else if vacKey != connectors.AfmPrefetchThreshold {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmPrefetchThreshold))
-			} else if vacKey != connectors.AfmObjectFastReaddir {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmObjectFastReaddir))
-			} else if vacKey != connectors.AfmFileOpenRefreshInterval {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmFileOpenRefreshInterval))
-			} else if vacKey != connectors.AfmDirLookupRefreshInterval {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmDirLookupRefreshInterval))
-			} else if vacKey != connectors.AfmDirOpenRefreshInterval {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmDirOpenRefreshInterval))
-			} else if vacKey != connectors.AfmFileLookupRefreshInterval {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmFileLookupRefreshInterval))
-			} else {
-				klog.Infof("[%s] parameter configured in vac is not in default supported list", loggerId)
-			}
+			klog.Infof("[%s] parameter configured in vac is not in default supported list", loggerId)
 		}
 	}
 	return nil
 }
+
+
 
 func (cs *ScaleControllerServer) getPrimaryClusterDetails(ctx context.Context) (connectors.SpectrumScaleConnector, string, error) {
 	loggerId := utils.GetLoggerId(ctx)
