@@ -2231,8 +2231,6 @@ func (r *CSIScaleOperatorReconciler) parseConfigMap(ctx context.Context, instanc
 				validateEnvVarValue(config.EnvNodePublishMethodValues[:], keyUpper, value, validEnvMap, invalidEnvValueMap)
 			case config.EnvVolumeStatsCapabilityKeyPrefixed:
 				validateEnvVarValue(config.EnvVolumeStatsCapabilityValues[:], keyUpper, value, validEnvMap, invalidEnvValueMap)
-			case config.EnvDiscoverCGFilesetKeyPrefixed:
-				validateEnvVarValue(config.EnvDiscoverCGFilesetValues[:], keyUpper, value, validEnvMap, invalidEnvValueMap)
 			case config.EnvVolNamePrefixKeyPrefixed:
 				validateVolNamePrefix(ctx, keyUpper, strings.ToLower(value), validEnvMap, invalidEnvValueMap)
 			case config.DaemonSetUpgradeMaxUnavailableKey:
@@ -2447,12 +2445,6 @@ func setDefaultDriverEnvValues(ctx context.Context, envMap map[string]string) {
 		logger.Info("DaemonSetUpgradeMaxUnavailable is empty or incorrect.", "Defaulting DaemonSetUpgradeMaxUnavailable to", "1")
 		envMap[config.DaemonSetUpgradeMaxUnavailableKey] = ""
 	}
-	// Set default DiscoverCGFileset when it is not present in envMap
-	if _, ok := envMap[config.EnvDiscoverCGFilesetKey]; !ok {
-		envDiscoverCGFilesetDefaultValue := getDiscoverCGFilesetDefaultValue(ctx)
-		logger.Info("DiscoverCGFileset is empty or incorrect.", "Defaulting DiscoverCGFileset to", envDiscoverCGFilesetDefaultValue)
-		envMap[config.EnvDiscoverCGFilesetKey] = envDiscoverCGFilesetDefaultValue
-	}
 
 	// set default HostNetwork env when it is not present in envMap
 	if _, ok := envMap[config.HostNetworkKey]; !ok {
@@ -2480,22 +2472,6 @@ func setDefaultDriverEnvValues(ctx context.Context, envMap map[string]string) {
 		logger.Info("Sidecars Memory limits is empty or incorrect.", "Defaulting Memory limits to", config.SidecarMemoryLimitsDefaultValue)
 		envMap[config.SidecarMemoryLimits] = config.SidecarMemoryLimitsDefaultValue
 	}
-}
-
-// getDiscoverCGFilesetDefaultValue returns default value for CG fileset discovery
-func getDiscoverCGFilesetDefaultValue(ctx context.Context) string {
-	logger := csiLog.FromContext(ctx).WithName("getDiscoverCGFilesetDefaultValue")
-	logger.Info("Getting DISCOVER_CG_FILESET default value")
-
-	if CNSAClusterPresence, ok := clusterTypeData[config.ENVClusterCNSAPresenceCheck]; ok {
-
-		if CNSAClusterPresence == "True" {
-			//CG fileset discovery is enabled by default with CNSA cluster required for RDR
-			return "ENABLED"
-		}
-	}
-	//CG fileset discovery is disabled by default on k8s cluster
-	return "DISABLED"
 }
 
 // listGUIPasswdExpiredClusters returns a list having clusterIds whose password is expired
