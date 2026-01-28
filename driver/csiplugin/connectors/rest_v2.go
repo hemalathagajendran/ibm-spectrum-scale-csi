@@ -723,6 +723,7 @@ func (s *SpectrumRestV2) CreateFileset(ctx context.Context, filesystemName strin
 		filesetreq.AfmMode = mode
 		nfsTarget := fmt.Sprintf("nfs://%s%s", exportMapName, nfsInfo[NfsPath])
 		filesetreq.AfmTarget = nfsTarget
+		filesetreq.MakeActive = true
 	}
 
 	uid, uidSpecified := opts[UserSpecifiedUID]

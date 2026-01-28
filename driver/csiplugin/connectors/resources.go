@@ -640,6 +640,7 @@ type CreateFilesetRequest struct {
 	AfmReadSparseThreshold       string `json:"afmReadSparseThreshold,omitempty"`
 	AfmObjectFastReaddir         string `json:"afmObjectFastReaddir,omitempty"`
 	AfmFileOpenRefreshInterval   string `json:"afmFileOpenRefreshInterval,omitempty"`
+	MakeActive				     bool   `json:"makeActive,omitempty"`
 }
 
 type CreateS3CacheFilesetRequest struct {
