@@ -20,13 +20,11 @@ import (
 	"fmt"
 	"math"
 	"net/url"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
-
 	"github.com/IBM/ibm-spectrum-scale-csi/driver/csiplugin/connectors"
 	"github.com/IBM/ibm-spectrum-scale-csi/driver/csiplugin/settings"
 	"github.com/IBM/ibm-spectrum-scale-csi/driver/csiplugin/utils"
@@ -53,7 +51,6 @@ const (
 	maximumPVSize         uint64 = 931322 * 1024 * 1024 * 1024 * 1024 // 999999999999999K
 	maximumPVSizeForLog          = "953673728GiB"
 	defaultSnapWindow            = "30" // default snapWindow for Consistency Group snapshots is 30 minutes
-	cgPrefixLen                  = 37
 	softQuotaPercent             = 70 // This value is % of the hardQuotaLimit e.g. 70%
 
 	discoverCGFilesetDisabled = "DISABLED"
@@ -290,45 +287,9 @@ func (cs *ScaleControllerServer) setQuota(ctx context.Context, scVol *scaleVolum
 	return nil
 }
 
-func (cs *ScaleControllerServer) validateCG(ctx context.Context, scVol *scaleVolume) (string, error) {
-	loggerId := utils.GetLoggerId(ctx)
-	klog.V(4).Infof("[%s] Validate CG for volume [%v]", loggerId, scVol)
-
-	fsetlist, err := scVol.Connector.ListCSIIndependentFilesets(ctx, scVol.VolBackendFs)
-	if err != nil {
-		return "", err
-	}
-
-	klog.V(4).Infof("[%s] Validate CG response fsetlist [%v]", loggerId, fsetlist)
-	var flist []string
-	pvcns := scVol.ConsistencyGroup[cgPrefixLen:]
-
-	for _, fset := range fsetlist {
-		if len(fset.FilesetName) > cgPrefixLen {
-			if fset.FilesetName[cgPrefixLen:] == pvcns {
-				flist = append(flist, fset.FilesetName)
-			}
-		}
-	}
-
-	klog.Infof("[%s] Filesets with namespace [%s] as suffix: [%v]", loggerId, pvcns, flist)
-
-	// no fileset with this namespace found
-	if len(flist) == 0 {
-		return scVol.ConsistencyGroup, nil
-	}
-
-	// multiple filesets with this namespace found
-	if len(flist) > 1 {
-		return "", status.Error(codes.Internal, fmt.Sprintf("conflicting filesets found %+v", flist))
-	}
-
-	// this is either local CG or Remote CG
-	return flist[0], nil
-}
 
 // createFilesetBasedVol: Create fileset based volume  - return relative path of volume created
-func (cs *ScaleControllerServer) createFilesetBasedVol(ctx context.Context, scVol *scaleVolume, isCGVolume bool, fsType string, cacheVolId *cacheVolumeId) (string, error) { //nolint:gocyclo,funlen
+func (cs *ScaleControllerServer) createFilesetBasedVol(ctx context.Context, scVol *scaleVolume, isCGVolume bool, cacheVolId *cacheVolumeId) (string, error) { //nolint:gocyclo,funlen
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] volume: [%v] - ControllerServer:createFilesetBasedVol , gatewayNodeName:[%s]", loggerId, scVol.VolName, cacheVolId.GateWayNode)
 	opt := make(map[string]interface{})
@@ -396,20 +357,6 @@ func (cs *ScaleControllerServer) createFilesetBasedVol(ctx context.Context, scVo
 	if isCGVolume {
 		// For new storageClass first create independent fileset if not present
 
-		discoverCGFileset := strings.ToUpper(os.Getenv(settings.DiscoverCGFileset))
-		klog.Infof("[%s] discoverCGFileset is : %s", loggerId, discoverCGFileset)
-
-		if discoverCGFileset != discoverCGFilesetDisabled && len(scVol.ConsistencyGroup) > cgPrefixLen {
-			// Check for consistencyGroup
-			if fsType != filesystemTypeRemote {
-				newcg, err := cs.validateCG(ctx, scVol)
-				if err != nil {
-					klog.Errorf("ValidateCG failed. Error: %v", err)
-					return "", err
-				}
-				scVol.ConsistencyGroup = newcg
-			}
-		}
 		indepFilesetName := scVol.ConsistencyGroup
 		klog.Infof("[%s] creating independent fileset for new storageClass with fileset name: [%v]", loggerId, indepFilesetName)
 		opt[connectors.UserSpecifiedFilesetType] = independentFileset
@@ -755,6 +702,15 @@ func updateComment(ctx context.Context, scVol *scaleVolume, cacheVolId *cacheVol
 	return scVol.Connector.UpdateFileset(ctx, scVol.VolBackendFs, scVol.StorageClassType, scVol.VolName, updateOpts, setAfmAttributes)
 }
 
+func getS3TuningParams(ctx context.Context)[]string{
+	return []string{connectors.AfmReadSparseThreshold, connectors.AfmNumFlushThreads, connectors.AfmPrefetchThreshold, connectors.AfmObjectFastReaddir, connectors.AfmFileOpenRefreshInterval}
+}
+
+
+func getNfsTuningParams(ctx context.Context)[]string{
+	return []string{connectors.AfmFileOpenRefreshInterval, connectors.AfmDirLookupRefreshInterval, connectors.AfmDirOpenRefreshInterval, connectors.AfmFileLookupRefreshInterval}
+}
+
 func (cs *ScaleControllerServer) getConnFromClusterID(ctx context.Context, cid string) (connectors.SpectrumScaleConnector, error) {
 	loggerId := utils.GetLoggerId(ctx)
 	connector, isConnPresent := cs.Driver.connmap[cid]
@@ -798,6 +754,18 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 	loggerId := utils.GetLoggerId(ctx)
 
 	for vacKey, vacValue := range mutableParams {
+
+		if cacheVolId.IsNfsSupported{
+			nfsTuningParams := getNfsTuningParams(ctx)
+			if !utils.ContainsString(vacKey, nfsTuningParams){
+				return status.Error(codes.Internal, fmt.Sprintf("Invalid nfs vac tuning parameter [%s] is provided. Please check case/parameter before providing in vac", vacKey))
+			}
+		}else{
+			s3TuningParams := getS3TuningParams(ctx)
+			if !utils.ContainsString(vacKey, s3TuningParams){
+				return status.Error(codes.Internal, fmt.Sprintf("Invalid s3 vac tuning parameter [%s] is provided. Please check case/parameter before providing in vac", vacKey))
+			}
+		}
 		switch vacKey {
 
 		case connectors.AfmReadSparseThreshold:
@@ -865,29 +833,13 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 			}
 
 		default:
-			if vacKey != connectors.AfmReadSparseThreshold {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmReadSparseThreshold))
-			} else if vacKey != connectors.AfmNumFlushThreads {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmNumFlushThreads))
-			} else if vacKey != connectors.AfmPrefetchThreshold {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmPrefetchThreshold))
-			} else if vacKey != connectors.AfmObjectFastReaddir {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmObjectFastReaddir))
-			} else if vacKey != connectors.AfmFileOpenRefreshInterval {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmFileOpenRefreshInterval))
-			} else if vacKey != connectors.AfmDirLookupRefreshInterval {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmDirLookupRefreshInterval))
-			} else if vacKey != connectors.AfmDirOpenRefreshInterval {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmDirOpenRefreshInterval))
-			} else if vacKey != connectors.AfmFileLookupRefreshInterval {
-				return status.Error(codes.Internal, fmt.Sprintf("Invalid vac parameter %s is provided. Please check case before providing in vac", connectors.AfmFileLookupRefreshInterval))
-			} else {
-				klog.Infof("[%s] parameter configured in vac is not in default supported list", loggerId)
-			}
+			klog.Infof("[%s] parameter configured in vac is not in default supported list", loggerId)
 		}
 	}
 	return nil
 }
+
+
 
 func (cs *ScaleControllerServer) getPrimaryClusterDetails(ctx context.Context) (connectors.SpectrumScaleConnector, string, error) {
 	loggerId := utils.GetLoggerId(ctx)
@@ -1218,7 +1170,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 		capacity := uint64(capRange.GetRequiredBytes()) // #nosec G115 -- false positive
 		targetPath, err = cs.createStaticBasedVol(ctx, scaleVol, filesetName, capacity)
 	} else if scaleVol.IsFilesetBased {
-		targetPath, err = cs.createFilesetBasedVol(ctx, scaleVol, isCGVolume, volFsInfo.Type, cacheVolId)
+		targetPath, err = cs.createFilesetBasedVol(ctx, scaleVol, isCGVolume, cacheVolId)
 	} else {
 		targetPath, err = cs.createLWVol(ctx, scaleVol)
 	}
@@ -2502,20 +2454,6 @@ func (cs *ScaleControllerServer) DeleteFilesetVol(ctx context.Context, Filesyste
 	return false, nil
 }
 
-// GetAFMMode returns the AFM mode of the fileset and also the error
-// if there is any (including the fileset not found error) while getting
-// the fileset info
-func (cs *ScaleControllerServer) GetAFMMode(ctx context.Context, filesystemName string, filesetName string, conn connectors.SpectrumScaleConnector) (string, error) {
-	loggerId := utils.GetLoggerId(ctx)
-	filesetDetails, err := conn.ListFileset(ctx, filesystemName, filesetName)
-	if err != nil {
-		return "", status.Error(codes.Internal, fmt.Sprintf("failed to get fileset info, filesystem: [%v], fileset: [%v], error: [%v]", filesystemName, filesetName, err))
-	}
-
-	klog.V(4).Infof("[%s] AFM mode of the fileset [%v] is [%v]", loggerId, filesetName, filesetDetails.AFM.AFMMode)
-	return filesetDetails.AFM.AFMMode, nil
-}
-
 // This function deletes fileset for Consitency Group
 func (cs *ScaleControllerServer) DeleteCGFileset(ctx context.Context, FilesystemName string, volumeIdMembers scaleVolId, conn connectors.SpectrumScaleConnector) error {
 	loggerId := utils.GetLoggerId(ctx)
@@ -2819,23 +2757,6 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 		}
 		klog.Infof("[%s] Delete Volume FilesetName:[%s] and creator is IBM Storage Scale CSI driver", loggerId, FilesetName)
 
-		// Additional check for RDR fileset in secondary mode
-		if volumeIdMembers.StorageClassType == STORAGECLASS_ADVANCED {
-			AFMMode, err := cs.GetAFMMode(ctx, FilesystemName, volumeIdMembers.ConsistencyGroup, conn)
-			if err != nil {
-				if strings.Contains(err.Error(), fsetNotFoundErrCode) ||
-					strings.Contains(err.Error(), fsetNotFoundErrMsg) { // fileset is already deleted
-					klog.V(4).Infof("[%s] the ConsistencyGroup fileset [%v] is deleted already", loggerId, FilesetName)
-					return &csi.DeleteVolumeResponse{}, nil
-				}
-				return nil, err
-			}
-			if AFMMode == connectors.AFMModeSecondary {
-				// AFM will take care of deletion on secondary
-				klog.Infof("[%s] skipping the deletion of fileset [%v] because ConsistencyGroup fileset [%v] is in AFM Secondary mode", loggerId, FilesetName, volumeIdMembers.ConsistencyGroup)
-				return &csi.DeleteVolumeResponse{}, nil
-			}
-		}
 		if FilesetName != "" {
 			var pvName string
 			if strings.Contains(filepath.Base(relPath), "-data") {
@@ -3435,15 +3356,6 @@ func (cs *ScaleControllerServer) CreateSnapshot(newctx context.Context, req *csi
 			return nil, status.Error(codes.Internal, fmt.Sprintf("CreateSnapshot [%s] - invalid snapWindow value: [%v]", snapName, snapWindow))
 		}
 
-		// Additional check for RDR fileset in secondary mode
-		AFMMode, err := cs.GetAFMMode(ctx, filesystemName, filesetName, conn)
-		if err != nil {
-			return nil, err
-		}
-		if AFMMode == connectors.AFMModeSecondary {
-			klog.Errorf("[%s] snapshot is not supported for AFM Secondary mode of ConsistencyGroup fileset [%v]", loggerId, filesetName)
-			return nil, status.Error(codes.Internal, fmt.Sprintf("snapshot is not supported for AFM Secondary mode of ConsistencyGroup fileset [%v]", filesetName))
-		}
 	}
 
 	snapExist, err := conn.CheckIfSnapshotExist(ctx, filesystemName, filesetName, snapName)
