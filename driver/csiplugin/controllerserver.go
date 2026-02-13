@@ -1191,12 +1191,18 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 				return nil, err
 			}
 		} else {
-			CreateIntermittentSnapshot()
+			err = cs.createIntermittentSnapshot(ctx, scaleVol, srcVolumeIDMembers)
+			if err != nil{
+				klog.Errorf("[%s] CreateVolume [%s]: failed to create intermittent snapshot for source volume before copying content to target volume. Error: %v", loggerId, volName, err)
+				return nil, status.Error(codes.Internal, fmt.Sprintf("failed to create intermittent snapshot for source volume before copying content to target volume. Error: %v", err))
+			}
 			if env == "FUSION ACCESS"{
 				err = cs.copyVolumeContentWithIntermittentSnapshot(ctx, scaleVol, srcVolumeIDMembers, volFsInfo, targetPath, volID){
-
+					if err != nil{
+						klog.Errorf("[%s] CreateVolume [%s]: [%v]", loggerId, volName, err)
+						return nil, err
+					}
 				}
-
 			}else{
 				err = cs.copyVolumeContent(ctx, scaleVol, srcVolumeIDMembers, volFsInfo, targetPath, volID)
 				if err != nil {
@@ -1223,6 +1229,22 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 			ContentSource: volSrc,
 		},
 	}, nil
+}
+
+func (cs *ScaleControllerServer) CreateIntermittentSnapshot(ctx context.Context, newvolume *scaleVolume, sourcevolume scaleVolId ) error {
+	loggerId := utils.GetLoggerId(ctx)
+	klog.Infof("[%s] CreateIntermittentSnapshot: creating intermittent snapshot for source volume [%v] before copying content to target volume [%v]", loggerId, sourcevolume.VolName, newvolume.VolName)
+	intermittentSnapshotName := fmt.Sprintf("%s-intermittent-snap-%d", sourcevolume.VolName, time.Now().Unix())
+	conn, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId)
+	if err != nil {
+		return err
+	}
+	err = conn.CreateSnapshot(ctx, sourcevolume.FsName, sourcevolume.FsetName, intermittentSnapshotName)
+	if err != nil {
+		klog.Errorf("[%s] CreateIntermittentSnapshot: failed to create intermittent snapshot [%s] for source volume [%v]. Error: %v", loggerId, intermittentSnapshotName, sourcevolume.VolName, err)
+		return status.Error(codes.Internal, fmt.Sprintf("failed to create intermittent snapshot [%s] for source volume [%v]. Error: %v", intermittentSnapshotName, sourcevolume.VolName, err))
+	}
+	klog.Infof("[%s] CreateIntermittentSnapshot: intermittent snapshot [%s] created successfully for source volume [%v]", loggerId, intermittentSnapshotName, sourcevolume.VolName)
 }
 
 // createStaticBasedVol: Create volume based on static  - return relative path of volume created
