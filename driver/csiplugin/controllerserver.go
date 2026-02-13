@@ -1041,7 +1041,6 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 			klog.Errorf("[%s] volume:[%v] - Error in source volume validation [%v]", loggerId, volName, err)
 			return nil, err
 		}
-
 	}
 
 	if isSnapSource {
@@ -1192,10 +1191,18 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 				return nil, err
 			}
 		} else {
-			err = cs.copyVolumeContent(ctx, scaleVol, srcVolumeIDMembers, volFsInfo, targetPath, volID)
-			if err != nil {
-				klog.Errorf("[%s] CreateVolume [%s]: [%v]", loggerId, volName, err)
-				return nil, err
+			CreateIntermittentSnapshot()
+			if env == "FUSION ACCESS"{
+				err = cs.copyVolumeContentWithIntermittentSnapshot(ctx, scaleVol, srcVolumeIDMembers, volFsInfo, targetPath, volID){
+
+				}
+
+			}else{
+				err = cs.copyVolumeContent(ctx, scaleVol, srcVolumeIDMembers, volFsInfo, targetPath, volID)
+				if err != nil {
+					klog.Errorf("[%s] CreateVolume [%s]: [%v]", loggerId, volName, err)
+					return nil, err
+				}
 			}
 		}
 	}
@@ -2283,6 +2290,12 @@ func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scale
 	if sourcevolume.FsName != newvolume.VolBackendFs {
 		if sourceFsDetails.Mount.Status != "mounted" {
 			return status.Error(codes.Internal, fmt.Sprintf("filesystem %s is not mounted on GUI node", sourcevolume.FsName))
+		}
+	}
+
+	if env == "FUSION_ACCESS"{
+		if sourcevolume.FileSetType != independentFileset || newvolume.FileSetType != independentFileset {
+			return status.Error(codes.Internal, fmt.Sprintf("validation of volume cloning failed as the source [%s] and destination fileset [%s] type should be independent [%s]", sourcevolume.FileSetType, newvolume.FileSetType))
 		}
 	}
 
