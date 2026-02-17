@@ -520,7 +520,7 @@ func (s *SpectrumRestV2) CreateSnapshotCloneCopy(ctx context.Context, filesystem
 	snapCloneCopyReq.TargetPath = targetPath
 
 	formattedSrcPath := strings.ReplaceAll(sourcePath, "/", "%2F")
-	snapshotCloneCopyURL := fmt.Sprintf("scalemgmt/v2/filesystems/%s/filesets/%s/snapshots/%s/path/%s", filesystemName, filesetName, snapshotName, formattedSrcPath)
+	snapshotCloneCopyURL := fmt.Sprintf("scalemgmt/v2/filesystems/%s/filesets/%s/snapshotCloneCopy/%s/path/%s", filesystemName, filesetName, snapshotName, formattedSrcPath)
 	snapCloneCopyResponse := GenericResponse{}
 
 	err := s.doHTTP(ctx, snapshotCloneCopyURL, "PUT", &snapCloneCopyResponse, snapCloneCopyReq)

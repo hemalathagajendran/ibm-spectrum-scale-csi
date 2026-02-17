@@ -1869,14 +1869,14 @@ func (cs *ScaleControllerServer) copyVolumeContentWithIntermittentSnapshot(ctx c
 	path := sourcevolume.Path
 	mntPoint, fsetData, found := strings.Cut(path, sourcevolume.FsetName)
 	if found{
-		sourcePath = fmt.Sprintf("%s%s/%s%s", mntPoint, sourcevolume.FsetName, ".snapshots", fsetData)
+		sourcePath = fmt.Sprintf("%s%s/.snapshots/%s%s", mntPoint, sourcevolume.FsetName, intSnapshotname, fsetData)
 	}
 
 	targetPath := ""
 	if newvolume.VolDirBasePath != ""{
 		targetPath = fmt.Sprintf("%s%s%s%s-data", targetFsDetails.Mount.MountPoint, newvolume.VolDirBasePath, newvolume.VolName, newvolume.VolName)
 	}else{
-		targetPath = fmt.Sprintf("%s%s%s-data", targetFsDetails.Mount.MountPoint, newvolume.VolName, newvolume.VolName)
+		targetPath = fmt.Sprintf("%s/%s/%s-data", targetFsDetails.Mount.MountPoint, newvolume.VolName, newvolume.VolName)
 	}
 
 	klog.Infof("[%s] sourcePath:[%s], targetPath:[%s]", loggerId, sourcePath, targetPath)
@@ -2378,7 +2378,7 @@ func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scale
 	}
 
 	if isFusionAccess {
-		if sourcevolume.VolType != independentFileset || newvolume.VolumeType != independentFileset {
+		if sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || newvolume.FilesetType != independentFileset {
 			return status.Error(codes.Internal, fmt.Sprintf("validation of volume cloning failed as the source [%s] and destination volume [%s] type should be independent [%s]", sourcevolume.VolType, newvolume.VolumeType, independentFileset))
 		}
 	}
