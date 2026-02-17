@@ -1205,17 +1205,16 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 				return nil, err
 			}
 		} else {
-			intSnapshotName, err = cs.createIntermittentSnapshot(ctx, scaleVol, srcVolumeIDMembers, true) //need to replace true with isFusionAccess
+			intSnapshotName, err := cs.createIntermittentSnapshot(ctx, scaleVol, srcVolumeIDMembers, true) //need to replace true with isFusionAccess
 			if err != nil{
 				klog.Errorf("[%s] CreateVolume [%s]: failed to create intermittent snapshot for source volume before copying content to target volume. Error: %v", loggerId, volName, err)
 				return nil, status.Error(codes.Internal, fmt.Sprintf("failed to create intermittent snapshot for source volume before copying content to target volume. Error: %v", err))
 			}
 			if isFusionAccess{
-				err = cs.copyVolumeContentWithIntermittentSnapshot(ctx, scaleVol, srcVolumeIDMembers, volFsInfo, targetPath, intSnapshotName){
-					if err != nil{
-						klog.Errorf("[%s] CreateVolume [%s]: [%v]", loggerId, volName, err)
-						return nil, err
-					}
+				err = cs.copyVolumeContentWithIntermittentSnapshot(ctx, scaleVol, srcVolumeIDMembers, volFsInfo, intSnapshotName)
+				if err != nil{
+					klog.Errorf("[%s] CreateVolume [%s]: [%v]", loggerId, volName, err)
+					return nil, err
 				}
 			}else{
 				err = cs.copyVolumeContent(ctx, scaleVol, srcVolumeIDMembers, volFsInfo, targetPath, volID, intSnapshotName)
@@ -1245,9 +1244,9 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	}, nil
 }
 
-func (cs *ScaleControllerServer) CreateIntermittentSnapshot(ctx context.Context, newvolume *scaleVolume, sourcevolume scaleVolId, isFusionAccess bool ) (snapshoname, error) {
+func (cs *ScaleControllerServer) createIntermittentSnapshot(ctx context.Context, newvolume *scaleVolume, sourcevolume scaleVolId, isFusionAccess bool ) (string, error) {
 	loggerId := utils.GetLoggerId(ctx)
-	klog.Infof("[%s] CreateIntermittentSnapshot: creating intermittent snapshot for source volume [%v] before copying content to target volume [%v]", loggerId, sourcevolume.VolName, newvolume.VolName)
+	klog.Infof("[%s] createIntermittentSnapshot: creating intermittent snapshot for source volume [%v] before copying content to target volume [%v]", loggerId, sourcevolume.FsetName, newvolume.VolName)
 
 	intermittentSnapshotName := ""
 	if isFusionAccess{
@@ -1257,14 +1256,15 @@ func (cs *ScaleControllerServer) CreateIntermittentSnapshot(ctx context.Context,
 	}
 	conn, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId)
 	if err != nil {
-		return err
+		return "", err
 	}
+
 	err = conn.CreateSnapshot(ctx, sourcevolume.FsName, sourcevolume.FsetName, intermittentSnapshotName)
 	if err != nil {
-		klog.Errorf("[%s] CreateIntermittentSnapshot: failed to create intermittent snapshot [%s] for source volume [%v]. Error: %v", loggerId, intermittentSnapshotName, sourcevolume.VolName, err)
-		return "", status.Error(codes.Internal, fmt.Sprintf("failed to create intermittent snapshot [%s] for source volume [%v]. Error: %v", intermittentSnapshotName, sourcevolume.VolName, err))
+		klog.Errorf("[%s] createIntermittentSnapshot: failed to create intermittent snapshot [%s] for source volume [%v]. Error: %v", loggerId, intermittentSnapshotName, sourcevolume.FsetName, err)
+		return "", status.Error(codes.Internal, fmt.Sprintf("failed to create intermittent snapshot [%s] for source volume [%v]. Error: %v", intermittentSnapshotName, sourcevolume.FsetName, err))
 	}
-	klog.Infof("[%s] CreateIntermittentSnapshot: intermittent snapshot [%s] created successfully for source volume [%v]", loggerId, intermittentSnapshotName, sourcevolume.VolName)
+	klog.Infof("[%s] createIntermittentSnapshot: intermittent snapshot [%s] created successfully for source volume [%v]", loggerId, intermittentSnapshotName, sourcevolume.FsetName)
 	return intermittentSnapshotName, nil
 }
 
@@ -1847,7 +1847,7 @@ func (cs *ScaleControllerServer) copyShallowVolumeContent(ctx context.Context, n
 
 }
 
-func (cs*scaleControllerServer) copyVolumeContentWithIntermittentSnapshot(ctx context.Context, newvolume *scaleVolume, sourcevolume scaleVolId, fsDetails connectors.FileSystem_v2, targetPath, intSnapshotname string) error {
+func (cs *ScaleControllerServer) copyVolumeContentWithIntermittentSnapshot(ctx context.Context, newvolume *scaleVolume, sourcevolume scaleVolId, fsDetails connectors.FileSystem_v2, intSnapshotname string) error {
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] copyVolumeContentWithIntermittentSnapshot volume ID: [%v], scaleVolume: [%v], volume name: [%v]", loggerId, sourcevolume, newvolume, newvolume.VolName)
 	conn, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId)
@@ -1880,10 +1880,10 @@ func (cs*scaleControllerServer) copyVolumeContentWithIntermittentSnapshot(ctx co
 	}
 
 	klog.Infof("[%s] sourcePath:[%s], targetPath:[%s]", loggerId, sourcePath, targetPath)
-	err := conn.SnapshotCloneCopy(ctx, sourcevolume.FsName, sourcevolume.FsetName, intSnapshotname, sourcePath, newvolume.VolBackendFs, newvolume.VolName, targetPath)
+	err = conn.CreateSnapshotCloneCopy(ctx, sourcevolume.FsName, sourcevolume.FsetName, intSnapshotname, sourcePath, newvolume.VolBackendFs, newvolume.VolName, targetPath)
 	if err != nil {
-		klog.Errorf("[%s] failed to clone copy volume from volume. Error: [%v]", loggerId, jobErr)
-		return status.Error(codes.Internal, fmt.Sprintf("failed to clone copy volume from volume. Error: [%v]", jobErr))
+		klog.Errorf("[%s] failed to clone copy volume from volume. Error: [%v]", loggerId, err)
+		return status.Error(codes.Internal, fmt.Sprintf("failed to clone copy volume from volume. Error: [%v]", err))
 	}
 
 	return nil
