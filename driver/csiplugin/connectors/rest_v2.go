@@ -522,13 +522,13 @@ func (s *SpectrumRestV2) SnapshotCloneCopy(ctx context.Context, filesystemName, 
 	snapshotCloneCopyURL := fmt.Sprintf("scalemgmt/v2/filesystems/%s/filesets/%s/snapshots/%s/path/%s", filesystemName, filesetName, snapshotName, formattedSrcPath)
 	snapCloneCopyResponse := GenericResponse{}
 
-	err := s.doHTTP(ctx, snapshotCloneCopyURL, "PUT", &SnapshotCloneCopyResponse, snapCloneCopyReq)
+	err := s.doHTTP(ctx, snapshotCloneCopyURL, "PUT", &snapCloneCopyResponse, snapCloneCopyReq)
 	if err != nil {
 		klog.Errorf("[%s] Error in snapshot clone copy request: %v", utils.GetLoggerId(ctx), err)
 		return 0, 0, err
 	}
 
-	err = s.isRequestAccepted(ctx, SnapshotCloneCopyResponse, snapshotCloneCopyURL)
+	err = s.isRequestAccepted(ctx, snapCloneCopyResponse, snapshotCloneCopyURL)
 	if err != nil {
 		klog.Errorf("[%s] request not accepted for processing: %v", utils.GetLoggerId(ctx), err)
 		return 0, 0, err
