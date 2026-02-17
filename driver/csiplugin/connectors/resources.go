@@ -279,7 +279,7 @@ type CopySnapshotRequest struct {
 	Force            bool   `json:"force,omitempty"`
 }
 
-type SnapshotCloneCopyRequest struct{
+type SnapshotCloneCopyRequest struct {
 	TargetFilesystem string `json:"targetFilesystem,omitempty"`
 	TargetFileset    string `json:"targetFileset,omitempty"`
 	TargetPath       string `json:"targetPath,omitempty"`
@@ -531,8 +531,14 @@ type Snapshot_v2 struct {
 	Created        string `json:"created,omitempty"`
 }
 
-type CloneChildren_v2 struct {
-	FilesetName    []string `json:"filesetName,omitempty"`
+type CloneChildren struct {
+	FilesetName string `json:"filesetName,omitempty"`
+}
+
+type GetCloneChildrenResponse struct {
+	CloneChildren []CloneChildren `json:"cloneChildren,omitempty"`
+	Status        Status          `json:"status,omitempty"`
+	Paging        Pages           `json:"paging,omitempty"`
 }
 
 type GetSnapshotResponse_v2 struct {
@@ -650,7 +656,7 @@ type CreateFilesetRequest struct {
 	AfmReadSparseThreshold       string `json:"afmReadSparseThreshold,omitempty"`
 	AfmObjectFastReaddir         string `json:"afmObjectFastReaddir,omitempty"`
 	AfmFileOpenRefreshInterval   string `json:"afmFileOpenRefreshInterval,omitempty"`
-	MakeActive				     bool   `json:"makeActive,omitempty"`
+	MakeActive                   bool   `json:"makeActive,omitempty"`
 }
 
 type CreateS3CacheFilesetRequest struct {

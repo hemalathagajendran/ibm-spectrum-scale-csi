@@ -577,22 +577,22 @@ func (s *SpectrumRestV2) CreateSnapshotCloneSplit(ctx context.Context, filesyste
 	return nil
 }
 
-func (s *SpectrumRestV2) GetSnapshotCloneChild(ctx context.Context, filesystemName, filesetName, snapshotName, sourcePath string) ([]CloneChildren_v2, error) {
+func (s *SpectrumRestV2) GetSnapshotCloneChild(ctx context.Context, filesystemName, filesetName, snapshotName, sourcePath string) (string, error) {
 
 	klog.V(4).Infof("[%s] rest_v2 GetSnapshotCloneChild. filesystemName: %s, filesetName: %s, snapshotName:%s, sourcePath:%s ", utils.GetLoggerId(ctx), filesystemName, filesetName, snapshotName, sourcePath)
 
 	formattedSrcPath := strings.ReplaceAll(sourcePath, "/", "%2F")
 	snapCloneChildURL := fmt.Sprintf("scalemgmt/v2/filesystems/%s/filesets/%s/snapshotCloneChilds/%s/path/%s", filesystemName, filesetName, snapshotName, formattedSrcPath)
-	snapCloneChildResponse := []CloneChildren_v2{}
+	snapCloneChildResponse := GetCloneChildrenResponse{}
 
 	err := s.doHTTP(ctx, snapCloneChildURL, "GET", &snapCloneChildResponse, nil)
 	if err != nil {
 		klog.Errorf("[%s] unable to get snapshot clone childs for fileset [%v]. Error [%v]", utils.GetLoggerId(ctx), filesetName, err)
-		return nil, fmt.Errorf("unable to get snapshot clone childs for fileset [%v]. Error [%v]", filesetName, err)
+		return "", fmt.Errorf("unable to get snapshot clone childs for fileset [%v]. Error [%v]", filesetName, err)
 
 	}
 
-	return snapCloneChildResponse, nil
+	return snapCloneChildResponse.CloneChildren[0].FilesetName, nil
 }
 
 func (s *SpectrumRestV2) GetLatestFilesetSnapshots(ctx context.Context, filesystemName string, filesetName string) ([]Snapshot_v2, error) {
