@@ -1874,7 +1874,7 @@ func (cs *ScaleControllerServer) copyVolumeContentWithIntermittentSnapshot(ctx c
 
 	targetPath := ""
 	if newvolume.VolDirBasePath != ""{
-		targetPath = fmt.Sprintf("%s%s%s%s-data", targetFsDetails.Mount.MountPoint, newvolume.VolDirBasePath, newvolume.VolName, newvolume.VolName)
+		targetPath = fmt.Sprintf("%s/%s/%s/%s-data", targetFsDetails.Mount.MountPoint, newvolume.VolDirBasePath, newvolume.VolName, newvolume.VolName)
 	}else{
 		targetPath = fmt.Sprintf("%s/%s/%s-data", targetFsDetails.Mount.MountPoint, newvolume.VolName, newvolume.VolName)
 	}
