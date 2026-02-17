@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -854,6 +855,12 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	loggerId := utils.GetLoggerId(newctx)
 	ctx := utils.SetModuleName(newctx, createVolume)
 
+	//  TO BE REMOVED
+	os.Setenv("FUSION_ACCESS", "true")
+
+	// Check if the environment variable FUSION_ACCESS is set to true, if yes then validate the fileset type for source and destination volumes to be independent as fusion only supports independent filesets.
+	isFusionAccess := strings.EqualFold(os.Getenv("FUSION_ACCESS"), "true")
+
 	// Mask the secrets from request before logging
 	reqToLog := proto.Clone(req).(*csi.CreateVolumeRequest)
 	reqToLog.Secrets = nil
@@ -1041,7 +1048,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	}
 
 	if isVolSource {
-		err = cs.validateCloneRequest(ctx, scaleVol, &srcVolumeIDMembers, scaleVol, volFsInfo, assembledScaleversion)
+		err = cs.validateCloneRequest(ctx, scaleVol, &srcVolumeIDMembers, scaleVol, volFsInfo, assembledScaleversion, isFusionAccess)
 		if err != nil {
 			klog.Errorf("[%s] volume:[%v] - Error in source volume validation [%v]", loggerId, volName, err)
 			return nil, err
@@ -2254,7 +2261,7 @@ func (cs *ScaleControllerServer) createSnapshotDir(ctx context.Context, sourcesn
 	return nil
 }
 
-func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scaleVol *scaleVolume, sourcevolume *scaleVolId, newvolume *scaleVolume, volFsInfo connectors.FileSystem_v2, assembledScaleversion string) error {
+func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scaleVol *scaleVolume, sourcevolume *scaleVolId, newvolume *scaleVolume, volFsInfo connectors.FileSystem_v2, assembledScaleversion string, isFusionAccess bool) error {
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] validateVolId [%v]", loggerId, sourcevolume)
 
@@ -2319,9 +2326,9 @@ func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scale
 		}
 	}
 
-	if env == "FUSION_ACCESS"{
-		if sourcevolume.FileSetType != independentFileset || newvolume.FileSetType != independentFileset {
-			return status.Error(codes.Internal, fmt.Sprintf("validation of volume cloning failed as the source [%s] and destination fileset [%s] type should be independent [%s]", sourcevolume.FileSetType, newvolume.FileSetType))
+	if isFusionAccess {
+		if sourcevolume.VolType != independentFileset || newvolume.VolumeType != independentFileset {
+			return status.Error(codes.Internal, fmt.Sprintf("validation of volume cloning failed as the source [%s] and destination volume [%s] type should be independent [%s]", sourcevolume.VolType, newvolume.VolumeType, independentFileset))
 		}
 	}
 
