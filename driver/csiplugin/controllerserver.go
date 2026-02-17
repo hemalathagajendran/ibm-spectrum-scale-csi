@@ -2741,7 +2741,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 	isPvcFromSnapshot := false
 	var shallowCopyRefPath string
 	var snapshotName string
-	var independentFileset string
+	var independentFset string
 
 	if volumeIdMembers.VolType == FILE_SHALLOWCOPY_VOLUME {
 		if relPath != "" && strings.Contains(relPath, ".snapshots") {
@@ -2752,17 +2752,17 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 					isPvcFromSnapshot = true
 					snapshotName = volPath[1]
 					if volumeIdMembers.StorageClassType == STORAGECLASS_ADVANCED {
-						independentFileset = volumeIdMembers.ConsistencyGroup
+						independentFset = volumeIdMembers.ConsistencyGroup
 					} else {
 						fileset := volPath[2]
-						independentFileset = strings.Replace(fileset, "-data", "", 1)
+						independentFset = strings.Replace(fileset, "-data", "", 1)
 					}
-					customPath := strings.Replace(before, independentFileset, "", 1)
+					customPath := strings.Replace(before, independentFset, "", 1)
 					shallowCopyCustomPath := strings.Trim(customPath, "!/")
 					if shallowCopyCustomPath != "" {
-						shallowCopyRefPath = fmt.Sprintf("%s/%s/%s", shallowCopyCustomPath, independentFileset, snapshotName)
+						shallowCopyRefPath = fmt.Sprintf("%s/%s/%s", shallowCopyCustomPath, independentFset, snapshotName)
 					} else {
-						shallowCopyRefPath = fmt.Sprintf("%s/%s", independentFileset, snapshotName)
+						shallowCopyRefPath = fmt.Sprintf("%s/%s", independentFset, snapshotName)
 					}
 				}
 			} else {
@@ -2796,7 +2796,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 		}
 
 		if FilesetName != "" && isPvcFromSnapshot {
-			err := cs.DeleteShallowCopyRefPath(ctx, FilesystemName, FilesetName, shallowCopyRefPath, volumeIdMembers.StorageClassType, independentFileset, snapshotName, conn)
+			err := cs.DeleteShallowCopyRefPath(ctx, FilesystemName, FilesetName, shallowCopyRefPath, volumeIdMembers.StorageClassType, independentFset, snapshotName, conn)
 			if err != nil {
 				return nil, err
 			}
@@ -2899,7 +2899,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
-func (cs *ScaleControllerServer) DeleteShallowCopyRefPath(ctx context.Context, FilesystemName, FilesetName, ShallowCopyRefPath, storageClassType, independentFileset, snapshotName string, conn connectors.SpectrumScaleConnector) error {
+func (cs *ScaleControllerServer) DeleteShallowCopyRefPath(ctx context.Context, FilesystemName, FilesetName, ShallowCopyRefPath, storageClassType, independentFset, snapshotName string, conn connectors.SpectrumScaleConnector) error {
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] Deleting shallow copy reference path [%s]", loggerId, ShallowCopyRefPath)
 
@@ -2954,7 +2954,7 @@ func (cs *ScaleControllerServer) DeleteShallowCopyRefPath(ctx context.Context, F
 				}
 
 				if storageClassType == STORAGECLASS_ADVANCED {
-					snaperr := conn.DeleteSnapshot(ctx, FilesystemName, independentFileset, snapshotName)
+					snaperr := conn.DeleteSnapshot(ctx, FilesystemName, independentFset, snapshotName)
 					if snaperr != nil {
 						return status.Error(codes.Internal, fmt.Sprintf("unable to delete snapshot dir [%s] Error [%v]", snapshotName, err))
 					} else {
