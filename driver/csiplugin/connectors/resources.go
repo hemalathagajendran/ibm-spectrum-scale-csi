@@ -279,6 +279,12 @@ type CopySnapshotRequest struct {
 	Force            bool   `json:"force,omitempty"`
 }
 
+type SnapshotCloneCopyRequest struct{
+	TargetFilesystem string `json:"targetFilesystem,omitempty"`
+	TargetFileset    string `json:"targetFileset,omitempty"`
+	TargetPath       string `json:"targetPath,omitempty"`
+}
+
 type GenericResponse struct {
 	Status Status `json:"status,omitempty"`
 	Jobs   []Job  `json:"jobs,omitempty"`
@@ -523,6 +529,10 @@ type Snapshot_v2 struct {
 	SnapID         int    `json:"snapID,omitempty"`
 	Status         string `json:"status,omitempty"`
 	Created        string `json:"created,omitempty"`
+}
+
+type CloneChildren_v2 struct {
+	FilesetName    []string `json:"filesetName,omitempty"`
 }
 
 type GetSnapshotResponse_v2 struct {
