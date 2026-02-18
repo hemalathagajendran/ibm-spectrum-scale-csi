@@ -863,7 +863,6 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 
 	// Check if the environment variable FUSION_ACCESS is set to true, if yes then validate the fileset type for source and destination volumes to be independent as fusion only supports independent filesets.
 	isFusionAccess := strings.EqualFold(os.Getenv("FUSION_ACCESS"), "true")
-
 	// Mask the secrets from request before logging
 	reqToLog := proto.Clone(req).(*csi.CreateVolumeRequest)
 	reqToLog.Secrets = nil
@@ -3805,6 +3804,12 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "DeleteSnapshot - request cannot be empty")
 	}
+
+	//  TO BE REMOVED
+	os.Setenv("FUSION_ACCESS", "true")
+	// Check if the environment variable FUSION_ACCESS is set to true, if yes then validate the fileset type for source and destination volumes to be independent as fusion only supports independent filesets.
+	isFusionAccess := strings.EqualFold(os.Getenv("FUSION_ACCESS"), "true")
+
 	snapID := req.GetSnapshotId()
 
 	if snapID == "" {
@@ -3880,6 +3885,24 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 
 		// skip delete snapshot if not exist, return success
 		if snapExist {
+
+			if isFusionAccess && snapIdMembers.VolType == FILE_INDEPENDENTFILESET_VOLUME{
+				srcPath := ""
+				cloneChild, err := conn.GetSnapshotCloneChild(ctx, filesystemName, snapIdMembers.FsetName, snapIdMembers.SnapName, srcPath)
+				if err != nil{
+					klog.Errorf("[%s] DeleteSnapshot - unable to find clone childs for the snapshot %s: Error: %v", loggerId, snapIdMembers.SnapName, err)
+					return nil, err
+				}
+
+				if cloneChild != ""{
+					err = conn.CreateSnapshotCloneSplit(ctx, filesystemName, cloneChild)
+					if err != nil{
+						klog.Errorf("[%s] DeleteSnapshot - failed to create clone split for fileset %s: Error: %v", loggerId, cloneChild, err)
+						return nil, err
+					}
+				}
+			}
+
 			if snapIdMembers.StorageClassType == STORAGECLASS_CLASSIC {
 				if customPath != "" {
 					shallowCopyRefPath = fmt.Sprintf("%s/%s/%s", customPath, snapIdMembers.FsetName, snapIdMembers.SnapName)
