@@ -737,7 +737,7 @@ func checkSCSupportedParams(params map[string]string) (string, bool) {
 			"volBackendFs", "volDirBasePath", "uid", "gid", "permissions",
 			"clusterId", "filesetType", "parentFileset", "inodeLimit", "nodeClass",
 			"version", "tier", "compression", "consistencyGroup", "shared",
-			"volumeType", "cacheMode", "volNamePrefix", "existingVolume", "filesetName":
+			"volumeType", "cacheMode", "volNamePrefix", "existingVolume", "filesetName", "vmDiskOptimized":
 			// These are valid parameters, do nothing here
 		default:
 			invalidParams = append(invalidParams, k)
@@ -858,11 +858,6 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	loggerId := utils.GetLoggerId(newctx)
 	ctx := utils.SetModuleName(newctx, createVolume)
 
-	//  TO BE REMOVED
-	os.Setenv("FUSION_ACCESS", "true")
-
-	// Check if the environment variable FUSION_ACCESS is set to true, if yes then validate the fileset type for source and destination volumes to be independent as fusion only supports independent filesets.
-	isFusionAccess := strings.EqualFold(os.Getenv("FUSION_ACCESS"), "true")
 	// Mask the secrets from request before logging
 	reqToLog := proto.Clone(req).(*csi.CreateVolumeRequest)
 	reqToLog.Secrets = nil
@@ -1049,8 +1044,9 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 		}
 	}
 
+
 	if isVolSource {
-		err = cs.validateCloneRequest(ctx, scaleVol, &srcVolumeIDMembers, scaleVol, volFsInfo, assembledScaleversion, isFusionAccess)
+		err = cs.validateCloneRequest(ctx, scaleVol, &srcVolumeIDMembers, scaleVol, volFsInfo, assembledScaleversion)
 		if err != nil {
 			klog.Errorf("[%s] volume:[%v] - Error in source volume validation [%v]", loggerId, volName, err)
 			return nil, err
@@ -1205,32 +1201,27 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 				return nil, err
 			}
 		} else {
-			intSnapshotName, err := cs.createIntermittentSnapshot(ctx, scaleVol, srcVolumeIDMembers, true) //need to replace true with isFusionAccess
+			err = cs.copyVolumeContent(ctx, scaleVol, srcVolumeIDMembers, volFsInfo, targetPath, volID)
 			if err != nil {
-				klog.Errorf("[%s] CreateVolume [%s]: failed to create intermittent snapshot for source volume before copying content to target volume. Error: %v", loggerId, volName, err)
-				return nil, status.Error(codes.Internal, fmt.Sprintf("failed to create intermittent snapshot for source volume before copying content to target volume. Error: %v", err))
-			}
-			if isFusionAccess {
-				err = cs.copyVolumeContentWithIntermittentSnapshot(ctx, scaleVol, srcVolumeIDMembers, volFsInfo, intSnapshotName)
-				if err != nil {
-					klog.Errorf("[%s] CreateVolume [%s]: [%v]", loggerId, volName, err)
-					return nil, err
-				}
-			} else {
-				err = cs.copyVolumeContent(ctx, scaleVol, srcVolumeIDMembers, volFsInfo, targetPath, volID, intSnapshotName)
-				if err != nil {
-					klog.Errorf("[%s] CreateVolume [%s]: [%v]", loggerId, volName, err)
-					return nil, err
-				}
+				klog.Errorf("[%s] CreateVolume [%s]: [%v]", loggerId, volName, err)
+				return nil, err
 			}
 		}
 	}
 
 	if isSnapSource {
-		err = cs.copySnapContent(ctx, scaleVol, snapIdMembers, volFsInfo, targetPath, volID)
-		if err != nil {
-			klog.Errorf("[%s] createVolume failed while copying snapshot content [%s]: [%v]", loggerId, volName, err)
-			return nil, err
+		if scaleVol.VmDiskOptimized{
+			err = cs.copyVolumeContentWithSnapshotClone(ctx, scaleVol, snapIdMembers, volFsInfo)
+			if err != nil {
+				klog.Errorf("[%s] CreateVolume [%s]: [%v]", loggerId, volName, err)
+				return nil, err
+			}
+		}else{
+			err = cs.copySnapContent(ctx, scaleVol, snapIdMembers, volFsInfo, targetPath, volID)
+			if err != nil {
+				klog.Errorf("[%s] createVolume failed while copying snapshot content [%s]: [%v]", loggerId, volName, err)
+				return nil, err
+			}
 		}
 	}
 
@@ -1244,29 +1235,6 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	}, nil
 }
 
-func (cs *ScaleControllerServer) createIntermittentSnapshot(ctx context.Context, newvolume *scaleVolume, sourcevolume scaleVolId, isFusionAccess bool) (string, error) {
-	loggerId := utils.GetLoggerId(ctx)
-	klog.Infof("[%s] createIntermittentSnapshot: creating intermittent snapshot for source volume [%v] before copying content to target volume [%v]", loggerId, sourcevolume.FsetName, newvolume.VolName)
-
-	intermittentSnapshotName := ""
-	if isFusionAccess {
-		intermittentSnapshotName = fmt.Sprintf("%s-%s-%s", intermittentFusionSnapshot, sourcevolume.FsetName, newvolume.VolName)
-	} else {
-		intermittentSnapshotName = fmt.Sprintf("%s-%s-%s", intermittentNonFusionSnapshot, sourcevolume.FsetName, newvolume.VolName)
-	}
-	conn, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId)
-	if err != nil {
-		return "", err
-	}
-
-	err = conn.CreateSnapshot(ctx, sourcevolume.FsName, sourcevolume.FsetName, intermittentSnapshotName)
-	if err != nil {
-		klog.Errorf("[%s] createIntermittentSnapshot: failed to create intermittent snapshot [%s] for source volume [%v]. Error: %v", loggerId, intermittentSnapshotName, sourcevolume.FsetName, err)
-		return "", status.Error(codes.Internal, fmt.Sprintf("failed to create intermittent snapshot [%s] for source volume [%v]. Error: %v", intermittentSnapshotName, sourcevolume.FsetName, err))
-	}
-	klog.Infof("[%s] createIntermittentSnapshot: intermittent snapshot [%s] created successfully for source volume [%v]", loggerId, intermittentSnapshotName, sourcevolume.FsetName)
-	return intermittentSnapshotName, nil
-}
 
 // createStaticBasedVol: Create volume based on static  - return relative path of volume created
 func (cs *ScaleControllerServer) createStaticBasedVol(ctx context.Context, scVol *scaleVolume, filesetName string, capacity uint64) (string, error) { //nolint:gocyclo,funlen
@@ -1847,7 +1815,7 @@ func (cs *ScaleControllerServer) copyShallowVolumeContent(ctx context.Context, n
 
 }
 
-func (cs *ScaleControllerServer) copyVolumeContentWithIntermittentSnapshot(ctx context.Context, newvolume *scaleVolume, sourcevolume scaleVolId, fsDetails connectors.FileSystem_v2, intSnapshotname string) error {
+func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.Context, newvolume *scaleVolume, sourcevolume scaleSnapId, fsDetails connectors.FileSystem_v2) error {
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] copyVolumeContentWithIntermittentSnapshot volume ID: [%v], scaleVolume: [%v], volume name: [%v]", loggerId, sourcevolume, newvolume, newvolume.VolName)
 	conn, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId)
@@ -1869,7 +1837,7 @@ func (cs *ScaleControllerServer) copyVolumeContentWithIntermittentSnapshot(ctx c
 	path := sourcevolume.Path
 	mntPoint, fsetData, found := strings.Cut(path, sourcevolume.FsetName)
 	if found {
-		sourcePath = fmt.Sprintf("%s%s/.snapshots/%s%s", mntPoint, sourcevolume.FsetName, intSnapshotname, fsetData)
+		sourcePath = fmt.Sprintf("%s%s/.snapshots/%s%s", mntPoint, sourcevolume.FsetName, "", fsetData)
 	}
 
 	targetPath := ""
@@ -1880,7 +1848,7 @@ func (cs *ScaleControllerServer) copyVolumeContentWithIntermittentSnapshot(ctx c
 	}
 
 	klog.Infof("[%s] sourcePath:[%s], targetPath:[%s]", loggerId, sourcePath, targetPath)
-	err = conn.CreateSnapshotCloneCopy(ctx, sourcevolume.FsName, sourcevolume.FsetName, intSnapshotname, sourcePath, newvolume.VolBackendFs, newvolume.VolName, targetPath)
+	err = conn.CreateSnapshotCloneCopy(ctx, sourcevolume.FsName, sourcevolume.FsetName, "", sourcePath, newvolume.VolBackendFs, newvolume.VolName, targetPath)
 	if err != nil {
 		klog.Errorf("[%s] failed to clone copy volume from volume. Error: [%v]", loggerId, err)
 		return status.Error(codes.Internal, fmt.Sprintf("failed to clone copy volume from volume. Error: [%v]", err))
@@ -1889,9 +1857,9 @@ func (cs *ScaleControllerServer) copyVolumeContentWithIntermittentSnapshot(ctx c
 	return nil
 }
 
-func (cs *ScaleControllerServer) copyVolumeContent(ctx context.Context, newvolume *scaleVolume, sourcevolume scaleVolId, fsDetails connectors.FileSystem_v2, targetPath string, volID string, intSnapshotName string) error {
+func (cs *ScaleControllerServer) copyVolumeContent(ctx context.Context, newvolume *scaleVolume, sourcevolume scaleVolId, fsDetails connectors.FileSystem_v2, targetPath string, volID string) error {
 	loggerId := utils.GetLoggerId(ctx)
-	klog.Infof("[%s] copyVolContent volume ID: [%v], scaleVolume: [%v], volume name: [%v], intermittentSnapName: %s", loggerId, sourcevolume, newvolume, newvolume.VolName, intSnapshotName)
+	klog.Infof("[%s] copyVolContent volume ID: [%v], scaleVolume: [%v], volume name: [%v]", loggerId, sourcevolume, newvolume, newvolume.VolName)
 	conn, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId)
 	if err != nil {
 		return err
@@ -1922,7 +1890,7 @@ func (cs *ScaleControllerServer) copyVolumeContent(ctx context.Context, newvolum
 			path = fmt.Sprintf("%s%s", sourcevolume.FsetName, "-data")
 		}
 
-		jobStatus, jobID, jobErr := conn.CopyFsetSnapshotPath(ctx, sourcevolume.FsName, sourcevolume.FsetName, intSnapshotName, path, targetPath, newvolume.NodeClass)
+		jobStatus, jobID, jobErr := conn.CopyFilesetPath(ctx, sourcevolume.FsName, sourcevolume.FsetName, path, targetPath, newvolume.NodeClass)
 		if jobErr != nil {
 			klog.Errorf("[%s] failed to clone volume from volume. Error: [%v]", loggerId, jobErr)
 			return status.Error(codes.Internal, fmt.Sprintf("failed to clone volume from volume. Error: [%v]", jobErr))
@@ -2312,7 +2280,7 @@ func (cs *ScaleControllerServer) createSnapshotDir(ctx context.Context, sourcesn
 	return nil
 }
 
-func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scaleVol *scaleVolume, sourcevolume *scaleVolId, newvolume *scaleVolume, volFsInfo connectors.FileSystem_v2, assembledScaleversion string, isFusionAccess bool) error {
+func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scaleVol *scaleVolume, sourcevolume *scaleVolId, newvolume *scaleVolume, volFsInfo connectors.FileSystem_v2, assembledScaleversion string) error {
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] validateVolId [%v]", loggerId, sourcevolume)
 
@@ -2377,7 +2345,7 @@ func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scale
 		}
 	}
 
-	if isFusionAccess {
+	if scaleVol.VmDiskOptimized {
 		if sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || newvolume.FilesetType != independentFileset {
 			return status.Error(codes.Internal, fmt.Sprintf("validation of volume cloning failed as the source [%s] and destination volume [%s] type should be independent [%s]", sourcevolume.VolType, newvolume.VolumeType, independentFileset))
 		}

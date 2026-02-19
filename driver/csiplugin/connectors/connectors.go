@@ -136,6 +136,7 @@ const (
 	UserSpecifiedVolumeType       string = "volumeType"
 	UserSpecifiedVolNamePrefix    string = "volNamePrefix"
 	UserSpecifiedExistingVolume   string = "existingVolume"
+	UserSpecifiedVmDiskOptimized  string = "vmDiskOptimized"
 
 	// AFM tuning parameters to modify cache fileset for s3
 	AfmReadSparseThreshold     string = "afmReadSparseThreshold"

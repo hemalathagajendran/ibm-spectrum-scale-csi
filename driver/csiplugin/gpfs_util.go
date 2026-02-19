@@ -110,6 +110,7 @@ type scaleVolume struct {
 	IsStaticPVBased    bool                              `json:"isStaticPV"`
 	PVCName            string                            `json:"pvcName"`
 	Namespace          string                            `json:"namespace"`
+	VmDiskOptimized	   bool	                             `json:"vmDiskOptimized"`
 }
 
 type cacheVolumeId struct {
@@ -190,6 +191,7 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 	cg, isCGSpecified := volOptions[connectors.UserSpecifiedConsistencyGroup]
 	shared, isSharedSpecified := volOptions[connectors.UserSpecifiedShared]
 	volNamePrefix, isVolNamePrefixSpecified := volOptions[connectors.UserSpecifiedVolNamePrefix]
+	_, isVmDiskOptimizedSpecified := volOptions[connectors.UserSpecifiedVmDiskOptimized]
 
 	volumeType, volumeTypeSpecified := volOptions[connectors.UserSpecifiedVolumeType]
 	cacheMode, cacheModeSpecified := volOptions[connectors.UserSpecifiedCacheMode]
@@ -516,6 +518,11 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 		} else {
 			return &scaleVolume{}, status.Error(codes.InvalidArgument, fmt.Sprintf("Invalid volumeType is specified: %s, only allowed value is: %s", volumeType, cacheVolume))
 		}
+	}
+
+	scaleVol.VmDiskOptimized = false
+	if scaleVol.StorageClassType == STORAGECLASS_CLASSIC && fsetType == independentFileset && isVmDiskOptimizedSpecified {
+		scaleVol.VmDiskOptimized = true
 	}
 
 	if cacheModeSpecified && scaleVol.VolumeType != cacheVolume {
