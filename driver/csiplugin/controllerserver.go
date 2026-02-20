@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"math"
 	"net/url"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -3760,12 +3759,6 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "DeleteSnapshot - request cannot be empty")
 	}
-
-	//  TO BE REMOVED
-	os.Setenv("FUSION_ACCESS", "true")
-	// Check if the environment variable FUSION_ACCESS is set to true, if yes then validate the fileset type for source and destination volumes to be independent as fusion only supports independent filesets.
-	isFusionAccess := strings.EqualFold(os.Getenv("FUSION_ACCESS"), "true")
-
 	snapID := req.GetSnapshotId()
 
 	if snapID == "" {
