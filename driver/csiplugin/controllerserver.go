@@ -156,12 +156,12 @@ func (cs *ScaleControllerServer) generateVolID(ctx context.Context, scVol *scale
 		storageClassType = STORAGECLASS_CLASSIC
 		if scVol.IsFilesetBased {
 			if scVol.FilesetType == independentFileset {
-				if scVol.VmDiskOptimized{
+				if scVol.VmDiskOptimized {
 					volumeType = FILE_VMDISKOPTIMIZED_VOLUME
-					if srcFileset != "" && srcSnapshot != ""{
-						consistencyGroup = fmt.Sprintf("%s:%s",srcFileset, srcSnapshot)
+					if srcFileset != "" && srcSnapshot != "" {
+						consistencyGroup = fmt.Sprintf("%s:%s", srcFileset, srcSnapshot)
 					}
-				}else{
+				} else {
 					volumeType = FILE_INDEPENDENTFILESET_VOLUME
 				}
 			} else {
@@ -744,7 +744,7 @@ func checkSCSupportedParams(params map[string]string) (string, bool) {
 			"volBackendFs", "volDirBasePath", "uid", "gid", "permissions",
 			"clusterId", "filesetType", "parentFileset", "inodeLimit", "nodeClass",
 			"version", "tier", "compression", "consistencyGroup", "shared",
-			"volumeType", "cacheMode", "volNamePrefix", "existingVolume", "filesetName", "vmDiskOptimized":
+			"volumeType", "cacheMode", "volNamePrefix", "existingVolume", "filesetName", "volumeFeatures":
 			// These are valid parameters, do nothing here
 		default:
 			invalidParams = append(invalidParams, k)
@@ -1068,7 +1068,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 			return nil, err
 		}
 
-		if scaleVol.VmDiskOptimized{
+		if scaleVol.VmDiskOptimized {
 			srcFileset = snapIdMembers.FsetName
 			srcSnapshot = snapIdMembers.SnapName
 		}
@@ -1227,13 +1227,13 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	}
 
 	if isSnapSource {
-		if scaleVol.VmDiskOptimized{
+		if scaleVol.VmDiskOptimized {
 			err = cs.copyVolumeContentWithSnapshotClone(ctx, scaleVol, snapIdMembers, volFsInfo)
 			if err != nil {
 				klog.Errorf("[%s] CreateVolume [%s]: [%v]", loggerId, volName, err)
 				return nil, err
 			}
-		}else{
+		} else {
 			err = cs.copySnapContent(ctx, scaleVol, snapIdMembers, volFsInfo, targetPath, volID)
 			if err != nil {
 				klog.Errorf("[%s] createVolume failed while copying snapshot content [%s]: [%v]", loggerId, volName, err)
@@ -1251,7 +1251,6 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 		},
 	}, nil
 }
-
 
 // createStaticBasedVol: Create volume based on static  - return relative path of volume created
 func (cs *ScaleControllerServer) createStaticBasedVol(ctx context.Context, scVol *scaleVolume, filesetName string, capacity uint64) (string, error) { //nolint:gocyclo,funlen
@@ -1840,7 +1839,7 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 		return err
 	}
 
-	sourceFsName:= sourcevolume.FsName
+	sourceFsName := sourcevolume.FsName
 
 	sourceFsDetails, err := conn.GetFilesystemDetails(ctx, sourceFsName)
 	if err != nil {
@@ -1849,7 +1848,6 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 
 	sourceMntPoint := sourceFsDetails.Mount.MountPoint
 	sourcePath := fmt.Sprintf("%s%s/.snapshots/%s%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
-
 
 	targetPath := ""
 	if newvolume.VolDirBasePath != "" {
@@ -1867,7 +1865,7 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 	err = cs.createSnapshotTrackingDir(ctx, &sourcevolume, newvolume, false, "")
 	if err != nil {
 		return status.Error(codes.Internal, fmt.Sprintf("failed to create snapshot tracking directory. Error: [%v]", err))
-	}else{
+	} else {
 		klog.Infof("[%s] snapshot tracking directory created for clone volume:[%s]", loggerId, newvolume.VolName)
 	}
 
@@ -2157,12 +2155,12 @@ func (cs *ScaleControllerServer) validateSnapId(ctx context.Context, scaleVol *s
 		return status.Error(codes.Internal, fmt.Sprintf("snapshot [%v] does not exist for fileset [%v]", sourcesnapshot.SnapName, filesetToCheck))
 	}
 
-	if scaleVol.VmDiskOptimized{
-		if sourcesnapshot.FsName != newvolume.VolBackendFs{
+	if scaleVol.VmDiskOptimized {
+		if sourcesnapshot.FsName != newvolume.VolBackendFs {
 			return status.Error(codes.Internal, fmt.Sprintf("source snapshot fs [%s] doesn't match with clone volume [%s]", sourcesnapshot.FsName, newvolume.VolBackendFs))
 		}
 
-		if newvolume.FilesetType != independentFileset{
+		if newvolume.FilesetType != independentFileset {
 			return status.Error(codes.Internal, fmt.Sprintf("target volume [%s] is not an independent fileset", newvolume.VolName))
 		}
 	}
@@ -2283,9 +2281,9 @@ func (cs *ScaleControllerServer) createSnapshotTrackingDir(ctx context.Context, 
 	if customPath != "" {
 		shallowCopyPath = fmt.Sprintf("%s/%s/%s", customPath, snapshotPath, newvolume.VolName)
 	} else {
-		if newvolume.VmDiskOptimized{
+		if newvolume.VmDiskOptimized {
 			shallowCopyPath = fmt.Sprintf("%s/csiclone-%s", snapshotPath, newvolume.VolName)
-		}else{
+		} else {
 			shallowCopyPath = fmt.Sprintf("%s/%s", snapshotPath, newvolume.VolName)
 		}
 	}
@@ -3885,17 +3883,17 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 		// skip delete snapshot if not exist, return success
 		if snapExist {
 
-			if isFusionAccess && snapIdMembers.VolType == FILE_INDEPENDENTFILESET_VOLUME{
+			if isFusionAccess && snapIdMembers.VolType == FILE_INDEPENDENTFILESET_VOLUME {
 				srcPath := ""
 				cloneChild, err := conn.GetSnapshotCloneChild(ctx, filesystemName, snapIdMembers.FsetName, snapIdMembers.SnapName, srcPath)
-				if err != nil{
+				if err != nil {
 					klog.Errorf("[%s] DeleteSnapshot - unable to find clone childs for the snapshot %s: Error: %v", loggerId, snapIdMembers.SnapName, err)
 					return nil, err
 				}
 
-				if cloneChild != ""{
+				if cloneChild != "" {
 					err = conn.CreateSnapshotCloneSplit(ctx, filesystemName, cloneChild)
-					if err != nil{
+					if err != nil {
 						klog.Errorf("[%s] DeleteSnapshot - failed to create clone split for fileset %s: Error: %v", loggerId, cloneChild, err)
 						return nil, err
 					}
