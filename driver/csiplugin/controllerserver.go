@@ -1838,15 +1838,15 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 
 	sourceFsName := sourcevolume.FsName
 
-	sourceFilesetResp, err = conn.GetFileSetResponseFromName(ctx, filesystemName, sourcevolume.FsetName)
+	sourceFilesetResp, err := conn.GetFileSetResponseFromName(ctx, sourceFsName, sourcevolume.FsetName)
 	if err != nil {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("copyVolumeContentWithSnapshotClone - Unable to get source Fileset response for Fileset [%v] FS [%v] ClusterId [%v]", sourcevolume.FsetName, sourceFsName, sourcevolume.ClusterId))
+		return status.Error(codes.Internal, fmt.Sprintf("copyVolumeContentWithSnapshotClone - Unable to get source Fileset response for Fileset [%v] FS [%v] ClusterId [%v]", sourcevolume.FsetName, sourceFsName, sourcevolume.ClusterId))
 	}
 
 	sourcePath := ""
-	sourceMntPoint, fset, found := strings.Cut(path, sourcevolume.FsetName)
+	sourceMntPoint, _, found := strings.Cut(sourceFilesetResp.Config.Path, sourcevolume.FsetName)
 	if found{
-		sourcePath := fmt.Sprintf("%s/%s/.snapshots/%s/%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
+		sourcePath = fmt.Sprintf("%s/%s/.snapshots/%s/%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
 	}
 
 	targetPath := ""
