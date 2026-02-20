@@ -117,7 +117,7 @@ func (cs *ScaleControllerServer) createLWVol(ctx context.Context, scVol *scaleVo
 //VolID format for all newly created volumes (from 2.5.0 onwards):
 
 // <storageclass_type>;<volume_type>;<cluster_id>;<filesystem_uuid>;<consistency_group>;<fileset_name>;<path>
-func (cs *ScaleControllerServer) generateVolID(ctx context.Context, scVol *scaleVolume, uid string, isCGVolume, isShallowCopyVolume bool, targetPath string, filesetNameStatic string) (string, error) {
+func (cs *ScaleControllerServer) generateVolID(ctx context.Context, scVol *scaleVolume, uid string, isCGVolume, isShallowCopyVolume bool, targetPath string, filesetNameStatic, srcFileset, srcSnapshot string) (string, error) {
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] volume: [%v] - ControllerServer:generateVolId", loggerId, scVol.VolName)
 	klog.V(4).Infof("[%s] scVol: [%+v] - ControllerServer:generateVolId targetPath:[%v]", loggerId, scVol, targetPath)
@@ -156,7 +156,14 @@ func (cs *ScaleControllerServer) generateVolID(ctx context.Context, scVol *scale
 		storageClassType = STORAGECLASS_CLASSIC
 		if scVol.IsFilesetBased {
 			if scVol.FilesetType == independentFileset {
-				volumeType = FILE_INDEPENDENTFILESET_VOLUME
+				if scVol.VmDiskOptimized{
+					volumeType = FILE_VMDISKOPTIMIZED_VOLUME
+					if srcFileset != "" && srcSnapshot != ""{
+						consistencyGroup = fmt.Sprintf("%s:%s",srcFileset, srcSnapshot)
+					}
+				}else{
+					volumeType = FILE_INDEPENDENTFILESET_VOLUME
+				}
 			} else {
 				volumeType = FILE_DEPENDENTFILESET_VOLUME
 			}
@@ -1044,7 +1051,6 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 		}
 	}
 
-
 	if isVolSource {
 		err = cs.validateCloneRequest(ctx, scaleVol, &srcVolumeIDMembers, scaleVol, volFsInfo, assembledScaleversion)
 		if err != nil {
@@ -1053,11 +1059,18 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 		}
 	}
 
+	srcFileset := ""
+	srcSnapshot := ""
 	if isSnapSource {
 		err = cs.validateSnapId(ctx, scaleVol, &snapIdMembers, scaleVol, assembledScaleversion)
 		if err != nil {
 			klog.Errorf("[%s] volume:[%v] - Error in source snapshot validation [%v]", loggerId, volName, err)
 			return nil, err
+		}
+
+		if scaleVol.VmDiskOptimized{
+			srcFileset = snapIdMembers.FsetName
+			srcSnapshot = snapIdMembers.SnapName
 		}
 
 		if isShallowCopyVolume {
@@ -1078,7 +1091,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 			return nil, status.Error(codes.Internal, fmt.Sprintf("validation of checkCustomPathforSrcVolume failed: %v", err))
 		}
 
-		err = cs.createSnapshotDir(ctx, &snapIdMembers, scaleVol, isCGVolume, customPath)
+		err = cs.createSnapshotTrackingDir(ctx, &snapIdMembers, scaleVol, isCGVolume, customPath)
 		if err != nil {
 			return nil, err
 		}
@@ -1097,7 +1110,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 			}
 		}
 
-		volID, volIDErr := cs.generateVolID(ctx, scaleVol, volFsInfo.UUID, isCGVolume, isShallowCopyVolume, shallowCopyTargetPath, scaleVol.VolName)
+		volID, volIDErr := cs.generateVolID(ctx, scaleVol, volFsInfo.UUID, isCGVolume, isShallowCopyVolume, shallowCopyTargetPath, scaleVol.VolName, srcFileset, srcSnapshot)
 		if volIDErr != nil {
 			return nil, volIDErr
 		}
@@ -1113,6 +1126,10 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	}
 
 	klog.Infof("[%s] volume:[%v] -  IBM Storage Scale volume create params : %v\n", loggerId, scaleVol.VolName, scaleVol)
+
+	if scaleVol.VmDiskOptimized && scaleVol.Compression != "" {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume: compression is not supported for vmDiskOptimized volume: %s", scaleVol.VolName))
+	}
 
 	if scaleVol.IsFilesetBased && scaleVol.Compression != "" {
 		klog.Infof("[%s] createvolume: compression is enabled: changing volume name", loggerId)
@@ -1188,7 +1205,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 		return nil, err
 	}
 
-	volID, volIDErr := cs.generateVolID(ctx, scaleVol, volFsInfo.UUID, isCGVolume, isShallowCopyVolume, targetPath, filesetName)
+	volID, volIDErr := cs.generateVolID(ctx, scaleVol, volFsInfo.UUID, isCGVolume, isShallowCopyVolume, targetPath, filesetName, "", "")
 	if volIDErr != nil {
 		return nil, volIDErr
 	}
@@ -1823,35 +1840,35 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 		return err
 	}
 
-	targetFsName, err := conn.GetFilesystemName(ctx, fsDetails.UUID)
+	sourceFsName:= sourcevolume.FsName
+
+	sourceFsDetails, err := conn.GetFilesystemDetails(ctx, sourceFsName)
 	if err != nil {
 		return err
 	}
 
-	targetFsDetails, err := conn.GetFilesystemDetails(ctx, targetFsName)
-	if err != nil {
-		return err
-	}
+	sourceMntPoint := sourceFsDetails.Mount.MountPoint
+	sourcePath := fmt.Sprintf("%s%s/.snapshots/%s%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
 
-	sourcePath := ""
-	path := sourcevolume.Path
-	mntPoint, fsetData, found := strings.Cut(path, sourcevolume.FsetName)
-	if found {
-		sourcePath = fmt.Sprintf("%s%s/.snapshots/%s%s", mntPoint, sourcevolume.FsetName, "", fsetData)
-	}
 
 	targetPath := ""
 	if newvolume.VolDirBasePath != "" {
-		targetPath = fmt.Sprintf("%s/%s/%s/%s-data", targetFsDetails.Mount.MountPoint, newvolume.VolDirBasePath, newvolume.VolName, newvolume.VolName)
+		targetPath = fmt.Sprintf("%s/%s/%s/%s-data", fsDetails.Mount.MountPoint, newvolume.VolDirBasePath, newvolume.VolName, newvolume.VolName)
 	} else {
-		targetPath = fmt.Sprintf("%s/%s/%s-data", targetFsDetails.Mount.MountPoint, newvolume.VolName, newvolume.VolName)
+		targetPath = fmt.Sprintf("%s/%s/%s-data", fsDetails.Mount.MountPoint, newvolume.VolName, newvolume.VolName)
 	}
 
 	klog.Infof("[%s] sourcePath:[%s], targetPath:[%s]", loggerId, sourcePath, targetPath)
-	err = conn.CreateSnapshotCloneCopy(ctx, sourcevolume.FsName, sourcevolume.FsetName, "", sourcePath, newvolume.VolBackendFs, newvolume.VolName, targetPath)
+	err = conn.CreateSnapshotCloneCopy(ctx, sourcevolume.FsName, sourcevolume.FsetName, sourcevolume.SnapName, sourcePath, newvolume.VolBackendFs, newvolume.VolName, targetPath)
 	if err != nil {
 		klog.Errorf("[%s] failed to clone copy volume from volume. Error: [%v]", loggerId, err)
 		return status.Error(codes.Internal, fmt.Sprintf("failed to clone copy volume from volume. Error: [%v]", err))
+	}
+	err = cs.createSnapshotTrackingDir(ctx, &sourcevolume, newvolume, false, "")
+	if err != nil {
+		return status.Error(codes.Internal, fmt.Sprintf("failed to create snapshot tracking directory. Error: [%v]", err))
+	}else{
+		klog.Infof("[%s] snapshot tracking directory created for clone volume:[%s]", loggerId, newvolume.VolName)
 	}
 
 	return nil
@@ -2140,6 +2157,16 @@ func (cs *ScaleControllerServer) validateSnapId(ctx context.Context, scaleVol *s
 		return status.Error(codes.Internal, fmt.Sprintf("snapshot [%v] does not exist for fileset [%v]", sourcesnapshot.SnapName, filesetToCheck))
 	}
 
+	if scaleVol.VmDiskOptimized{
+		if sourcesnapshot.FsName != newvolume.VolBackendFs{
+			return status.Error(codes.Internal, fmt.Sprintf("source snapshot fs [%s] doesn't match with clone volume [%s]", sourcesnapshot.FsName, newvolume.VolBackendFs))
+		}
+
+		if newvolume.FilesetType != independentFileset{
+			return status.Error(codes.Internal, fmt.Sprintf("target volume [%s] is not an independent fileset", newvolume.VolName))
+		}
+	}
+
 	return nil
 }
 
@@ -2243,7 +2270,7 @@ func (cs *ScaleControllerServer) checkCustomPathforSrcVolume(ctx context.Context
 	}
 }
 
-func (cs *ScaleControllerServer) createSnapshotDir(ctx context.Context, sourcesnapshot *scaleSnapId, newvolume *scaleVolume, isCGVolume bool, customPath string) error {
+func (cs *ScaleControllerServer) createSnapshotTrackingDir(ctx context.Context, sourcesnapshot *scaleSnapId, newvolume *scaleVolume, isCGVolume bool, customPath string) error {
 	loggerId := utils.GetLoggerId(ctx)
 	var snapshotPath, shallowCopyPath string
 
@@ -2256,11 +2283,15 @@ func (cs *ScaleControllerServer) createSnapshotDir(ctx context.Context, sourcesn
 	if customPath != "" {
 		shallowCopyPath = fmt.Sprintf("%s/%s/%s", customPath, snapshotPath, newvolume.VolName)
 	} else {
-		shallowCopyPath = fmt.Sprintf("%s/%s", snapshotPath, newvolume.VolName)
+		if newvolume.VmDiskOptimized{
+			shallowCopyPath = fmt.Sprintf("%s/csiclone-%s", snapshotPath, newvolume.VolName)
+		}else{
+			shallowCopyPath = fmt.Sprintf("%s/%s", snapshotPath, newvolume.VolName)
+		}
 	}
 
 	if isCGVolume {
-		klog.Infof("[%s] Target path in createSnapshotDir:[%s]", loggerId, snapshotPath)
+		klog.Infof("[%s] Target path in createSnapshotTrackingDir:[%s]", loggerId, snapshotPath)
 		lockSuccess := CgSnapshotLock(ctx, snapshotPath, false)
 		if !lockSuccess {
 			message := fmt.Sprintf("create snapshot failed to acquire the lock as another operation is in progress for the same targetPath: [%s]", snapshotPath)
@@ -2271,7 +2302,7 @@ func (cs *ScaleControllerServer) createSnapshotDir(ctx context.Context, sourcesn
 		}
 	}
 
-	klog.Infof("[%s] createSnapshotDir reference path [%s] for shallow copy volume: [%s]", loggerId, shallowCopyPath, newvolume.VolName)
+	klog.Infof("[%s] createSnapshotTrackingDir reference path [%s] for shallow copy volume: [%s]", loggerId, shallowCopyPath, newvolume.VolName)
 	err := cs.createDirectory(ctx, newvolume, newvolume.VolName, shallowCopyPath)
 	if err != nil {
 		klog.Errorf("[%s] Failed to create snapshot reference directory", loggerId)
