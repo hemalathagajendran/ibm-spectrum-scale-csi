@@ -2376,7 +2376,7 @@ func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scale
 	}
 
 	if scaleVol.VmDiskOptimized {
-		if sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || sourcevolume.VolType != FILE_VMDISKOPTIMIZED_VOLUME && newvolume.FilesetType != independentFileset {
+		if (sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || sourcevolume.VolType !=  FILE_VMDISKOPTIMIZED_VOLUME) && newvolume.FilesetType != independentFileset {
 			return status.Error(codes.Internal, fmt.Sprintf("validation of volume cloning failed as the source [%s] and destination volume [%s] type should be independent [%s]", sourcevolume.VolType, newvolume.VolumeType, independentFileset))
 		}
 	}
