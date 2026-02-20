@@ -40,20 +40,20 @@ import (
 )
 
 const (
-	no                                   = "no"
-	yes                                  = "yes"
-	notFound                             = "NOT_FOUND"
-	filesystemTypeRemote                 = "remote"
-	filesystemMounted                    = "mounted"
-	filesetUnlinkedPath                  = "--"
-	ResponseStatusUnknown                = "UNKNOWN"
-	oneGB                         uint64 = 1024 * 1024 * 1024
-	smallestVolSize               uint64 = oneGB                              // 1GB
-	maximumPVSize                 uint64 = 931322 * 1024 * 1024 * 1024 * 1024 // 999999999999999K
-	maximumPVSizeForLog                  = "953673728GiB"
-	defaultSnapWindow                    = "30" // default snapWindow for Consistency Group snapshots is 30 minutes
-	softQuotaPercent                     = 70   // This value is % of the hardQuotaLimit e.g. 70%
-	intermittentFusionSnapshot           = "csiclone"
+	no                                = "no"
+	yes                               = "yes"
+	notFound                          = "NOT_FOUND"
+	filesystemTypeRemote              = "remote"
+	filesystemMounted                 = "mounted"
+	filesetUnlinkedPath               = "--"
+	ResponseStatusUnknown             = "UNKNOWN"
+	oneGB                      uint64 = 1024 * 1024 * 1024
+	smallestVolSize            uint64 = oneGB                              // 1GB
+	maximumPVSize              uint64 = 931322 * 1024 * 1024 * 1024 * 1024 // 999999999999999K
+	maximumPVSizeForLog               = "953673728GiB"
+	defaultSnapWindow                 = "30" // default snapWindow for Consistency Group snapshots is 30 minutes
+	softQuotaPercent                  = 70   // This value is % of the hardQuotaLimit e.g. 70%
+	intermittentFusionSnapshot        = "csiclone"
 
 	discoverCGFilesetDisabled = "DISABLED"
 
@@ -1842,10 +1842,11 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 	if err != nil {
 		return status.Error(codes.Internal, fmt.Sprintf("copyVolumeContentWithSnapshotClone - Unable to get source Fileset response for Fileset [%v] FS [%v] ClusterId [%v]", sourcevolume.FsetName, sourceFsName, sourcevolume.ClusterId))
 	}
-
+	klog.V(4).Infof("[%s] copyVolumeContentWithSnapshotClone - sourceFilesetResp [%+v]", loggerId, sourceFilesetResp)
+	klog.V(4).Infof("[%s] copyVolumeContentWithSnapshotClone - sourcevolume [%+v]", loggerId, sourcevolume)
 	sourcePath := ""
 	sourceMntPoint, _, found := strings.Cut(sourceFilesetResp.Config.Path, sourcevolume.FsetName)
-	if found{
+	if found {
 		sourcePath = fmt.Sprintf("%s/%s/.snapshots/%s/%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
 	}
 
@@ -2375,7 +2376,7 @@ func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scale
 	}
 
 	if scaleVol.VmDiskOptimized {
-		if sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || sourcevolume.VolType !=  FILE_VMDISKOPTIMIZED_VOLUME && newvolume.FilesetType != independentFileset {
+		if sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || sourcevolume.VolType != FILE_VMDISKOPTIMIZED_VOLUME && newvolume.FilesetType != independentFileset {
 			return status.Error(codes.Internal, fmt.Sprintf("validation of volume cloning failed as the source [%s] and destination volume [%s] type should be independent [%s]", sourcevolume.VolType, newvolume.VolumeType, independentFileset))
 		}
 	}
@@ -2770,10 +2771,12 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 	}
 
 	relPath := ""
+	klog.V(4).Infof("[%s] DeleteVolume : volumeIdMembers.Path [%+v], mountInfo.MountPoint [%+v]", loggerId, volumeIdMembers.Path, mountInfo.MountPoint)
 	if volumeIdMembers.StorageClassType != STORAGECLASS_CLASSIC || volumeIdMembers.VolType == FILE_SHALLOWCOPY_VOLUME || !symlinkExists {
+		klog.Infof("[%s] DeleteVolume : either volume is not from classic storage class or shallow copy volume or  or symlink doesn't exist, so getting relPath by replacing mount point from volume path", loggerId)
 		relPath = strings.Replace(volumeIdMembers.Path, mountInfo.MountPoint, "", 1)
 	} else {
-
+		klog.Infof("[%s] DeleteVolume : volume is from classic storage class and symlink exists, so getting primary fs mount point to replace from volume path to get relPath", loggerId)
 		pfsMountInfo, err := primaryConn.GetFilesystemMountDetails(ctx, pfsName)
 		if err != nil {
 			return nil, status.Error(codes.Internal, fmt.Sprintf("unable to get mount info for FS [%v] in primary cluster", FilesystemName))
@@ -2783,6 +2786,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 		relPath = strings.Replace(volumeIdMembers.Path, primaryFSMountPoint, "", 1)
 		klog.V(4).Infof("[%s] DeleteVolume : relPath %v volumeIdMembers.Path [%v], primaryFSMountPoint [%v]", loggerId, relPath, volumeIdMembers.Path, primaryFSMountPoint)
 	}
+	klog.V(4).Infof("[%s] DeleteVolume : relPath after replacing mount point [%v]", loggerId, relPath)
 	relPath = strings.Trim(relPath, "!/")
 
 	klog.V(4).Infof("[%s] DeleteVolume : relPath %v", loggerId, relPath)
@@ -2848,6 +2852,15 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 			if err != nil {
 				return nil, err
 			}
+		}
+		if FilesetName != "" && volumeIdMembers.VolType == FILE_VMDISKOPTIMIZED_VOLUME {
+			// frame the snapshot reference path from volumehandle 0;4;13969002371730051245;3A610B0A:698F11BE;pvc-d86e1180-f179-443f-93f5-7c6465f33fb0:snapshot-a0506a59-2368-412a-b616-1377376c35b9;pvc-aecf25fa-f71c-422d-8a0d-fa94b0cd44ea;<path>
+			snapshotRefPath := strings.Replace(volumeIdMembers.ConsistencyGroup, ":", "/", 1)
+			err := cs.DeleteCloneCopyRefPath(ctx, FilesystemName, FilesetName, snapshotRefPath, conn)
+			if err != nil {
+				return nil, err
+			}
+			klog.V(4).Infof("[%s] Deleted DeleteCloneCopyRefPath for volume [%s]", loggerId, FilesetName)
 		}
 		klog.Infof("[%s] Delete Volume FilesetName:[%s] and creator is IBM Storage Scale CSI driver", loggerId, FilesetName)
 
@@ -3008,6 +3021,56 @@ func (cs *ScaleControllerServer) DeleteShallowCopyRefPath(ctx context.Context, F
 					} else {
 						klog.Infof("[%s] delete snapshot reference directory [%s] successfully", loggerId, snapshotName)
 					}
+				}
+			}
+
+		}
+
+	}
+	return nil
+}
+
+func (cs *ScaleControllerServer) DeleteCloneCopyRefPath(ctx context.Context, FilesystemName, FilesetName, CloneCopyRefPath string, conn connectors.SpectrumScaleConnector) error {
+	loggerId := utils.GetLoggerId(ctx)
+	klog.Infof("[%s] Deleting clone copy reference path [%s]", loggerId, CloneCopyRefPath)
+	// pvc-d86e1180-f179-443f-93f5-7c6465f33fb0/snapshot-a0506a59-2368-412a-b616-1377376c35b9/csiclone-pvc-aecf25fa-f71c-422d-8a0d-fa94b0cd44ea
+	cloneCopyRefCompletePath := fmt.Sprintf("%s/csiclone-%s", CloneCopyRefPath, FilesetName)
+
+	isCloneCopyRefPathDeleted := false
+	err := conn.DeleteDirectory(ctx, FilesystemName, cloneCopyRefCompletePath, false)
+	if err != nil {
+		if strings.Contains(err.Error(), "EFSSG0264C") ||
+			strings.Contains(err.Error(), "does not exist") { // directory is already deleted
+			isCloneCopyRefPathDeleted = true
+		} else {
+			return status.Error(codes.Internal, fmt.Sprintf("unable to Delete clone copy reference Dir using FS [%s] Error [%v]", FilesystemName, err))
+		}
+	} else {
+		isCloneCopyRefPathDeleted = true
+	}
+
+	if isCloneCopyRefPathDeleted {
+		statInfo, err := conn.StatDirectory(ctx, FilesystemName, CloneCopyRefPath)
+		if err != nil {
+			if strings.Contains(err.Error(), "EFSSG0264C") ||
+				strings.Contains(err.Error(), "does not exist") {
+				klog.Infof("[%s] clone copy reference path [%s] is already deleted", loggerId, CloneCopyRefPath)
+				return nil
+			} else {
+				klog.Errorf("[%s] unable to stat directory using FS [%s] at path [%s]. Error [%v]", loggerId, FilesystemName, CloneCopyRefPath, err)
+				return err
+			}
+		} else {
+			nlink, err := parseStatDirInfo(statInfo)
+			if err != nil {
+				klog.Errorf("[%s] invalid number of links [%d] returned in stat output for FS [%s] at path [%s]", loggerId, nlink, FilesystemName, CloneCopyRefPath)
+				return err
+			}
+
+			if nlink == 2 {
+				err = conn.DeleteDirectory(ctx, FilesystemName, CloneCopyRefPath, false)
+				if err != nil {
+					return status.Error(codes.Internal, fmt.Sprintf("unable to Delete clone copy reference parent dir using FS [%s] Error [%v]", FilesystemName, err))
 				}
 			}
 
