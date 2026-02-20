@@ -54,7 +54,6 @@ const (
 	defaultSnapWindow                    = "30" // default snapWindow for Consistency Group snapshots is 30 minutes
 	softQuotaPercent                     = 70   // This value is % of the hardQuotaLimit e.g. 70%
 	intermittentFusionSnapshot           = "csiclone"
-	intermittentNonFusionSnapshot        = "csicopy"
 
 	discoverCGFilesetDisabled = "DISABLED"
 
@@ -1839,13 +1838,16 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 
 	sourceFsName := sourcevolume.FsName
 
-	sourceFsDetails, err := conn.GetFilesystemDetails(ctx, sourceFsName)
+	sourceFilesetResp, err = conn.GetFileSetResponseFromName(ctx, filesystemName, sourcevolume.FsetName)
 	if err != nil {
-		return err
+		return nil, status.Error(codes.Internal, fmt.Sprintf("copyVolumeContentWithSnapshotClone - Unable to get source Fileset response for Fileset [%v] FS [%v] ClusterId [%v]", sourcevolume.FsetName, sourceFsName, sourcevolume.ClusterId))
 	}
 
-	sourceMntPoint := sourceFsDetails.Mount.MountPoint
-	sourcePath := fmt.Sprintf("%s/%s/.snapshots/%s/%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
+	sourcePath := ""
+	sourceMntPoint, fset, found := strings.Cut(path, sourcevolume.FsetName)
+	if found{
+		sourcePath := fmt.Sprintf("%s/%s/.snapshots/%s/%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
+	}
 
 	targetPath := ""
 	if newvolume.VolDirBasePath != "" {
@@ -2373,7 +2375,7 @@ func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scale
 	}
 
 	if scaleVol.VmDiskOptimized {
-		if sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || newvolume.FilesetType != independentFileset {
+		if sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || sourcevolume.VolType !=  FILE_VMDISKOPTIMIZED_VOLUME && newvolume.FilesetType != independentFileset {
 			return status.Error(codes.Internal, fmt.Sprintf("validation of volume cloning failed as the source [%s] and destination volume [%s] type should be independent [%s]", sourcevolume.VolType, newvolume.VolumeType, independentFileset))
 		}
 	}
