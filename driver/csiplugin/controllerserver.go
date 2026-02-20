@@ -3841,24 +3841,6 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 
 		// skip delete snapshot if not exist, return success
 		if snapExist {
-
-			if isFusionAccess && snapIdMembers.VolType == FILE_INDEPENDENTFILESET_VOLUME {
-				srcPath := ""
-				cloneChild, err := conn.GetSnapshotCloneChild(ctx, filesystemName, snapIdMembers.FsetName, snapIdMembers.SnapName, srcPath)
-				if err != nil {
-					klog.Errorf("[%s] DeleteSnapshot - unable to find clone childs for the snapshot %s: Error: %v", loggerId, snapIdMembers.SnapName, err)
-					return nil, err
-				}
-
-				if cloneChild != "" {
-					err = conn.CreateSnapshotCloneSplit(ctx, filesystemName, cloneChild)
-					if err != nil {
-						klog.Errorf("[%s] DeleteSnapshot - failed to create clone split for fileset %s: Error: %v", loggerId, cloneChild, err)
-						return nil, err
-					}
-				}
-			}
-
 			if snapIdMembers.StorageClassType == STORAGECLASS_CLASSIC {
 				if customPath != "" {
 					shallowCopyRefPath = fmt.Sprintf("%s/%s/%s", customPath, snapIdMembers.FsetName, snapIdMembers.SnapName)
