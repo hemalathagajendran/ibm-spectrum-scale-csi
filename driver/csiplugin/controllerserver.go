@@ -1847,7 +1847,7 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 	}
 
 	sourceMntPoint := sourceFsDetails.Mount.MountPoint
-	sourcePath := fmt.Sprintf("%s%s/.snapshots/%s%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
+	sourcePath := fmt.Sprintf("%s/%s/.snapshots/%s/%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
 
 	targetPath := ""
 	if newvolume.VolDirBasePath != "" {
