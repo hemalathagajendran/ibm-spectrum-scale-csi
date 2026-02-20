@@ -23,7 +23,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -2500,7 +2499,7 @@ func (cs *ScaleControllerServer) GetSnapIdMembers(sId string) (scaleSnapId, erro
 	return sIdMem, nil
 }
 
-func (cs *ScaleControllerServer) DeleteFilesetVol(ctx context.Context, FilesystemName string, FilesetName string, volumeIdMembers scaleVolId, conn connectors.SpectrumScaleConnector, checkForSnapshots bool, isFusionAccess bool) (bool, error) {
+func (cs *ScaleControllerServer) DeleteFilesetVol(ctx context.Context, FilesystemName string, FilesetName string, volumeIdMembers scaleVolId, conn connectors.SpectrumScaleConnector, checkForSnapshots bool) (bool, error) {
 	//Check if fileset exist has any snapshot
 	loggerId := utils.GetLoggerId(ctx)
 	if checkForSnapshots {
@@ -2515,43 +2514,8 @@ func (cs *ScaleControllerServer) DeleteFilesetVol(ctx context.Context, Filesyste
 			}
 			return false, status.Error(codes.Internal, fmt.Sprintf("unable to list snapshot for fileset [%v]. Error: [%v]", FilesetName, err))
 		}
-		if isFusionAccess {
-			filesetDetails, err := conn.ListFileset(ctx, FilesystemName, FilesetName)
-			if err != nil {
-				return false, err
-			}
-			csicloneSnapshotList := []string{}
-			for _, snap := range snapshotList {
-				if strings.Contains(snap.SnapshotName, "csiclone-") {
-					csicloneSnapshotList = append(csicloneSnapshotList, snap.SnapshotName)
-				}
-			}
-			sort.Strings(csicloneSnapshotList)
-			for _, snapName := range csicloneSnapshotList {
-				klog.Infof("[%s] fileset [%v] contains snapshot with prefix 'csiclone- %v'", loggerId, FilesetName, snapName)
-				// find clone child
-				sourcePath := fmt.Sprintf("%s/.snapshots/%s/%s-data", filesetDetails.Config.Path, snapName, FilesetName)
-				klog.Infof("[%s] Attempting to find clone child sourcePath [%v]", loggerId, sourcePath)
-				clonedFset, err := conn.GetSnapshotCloneChild(ctx, FilesystemName, FilesetName, snapName, sourcePath)
-				if err != nil {
-					return false, status.Error(codes.Internal, fmt.Sprintf("unable to get clone child for snapshot [%v] of fileset [%v]. Error: [%v]", snapName, FilesetName, err))
-				}
-				// clone split.
-				klog.Infof("[%s] Attempting to split clone for snapshot [%v] of fileset [%v]", loggerId, snapName, FilesetName)
-				err = conn.CreateSnapshotCloneSplit(ctx, FilesystemName, clonedFset)
-				if err != nil {
-					return false, err
-				}
-				klog.Infof("[%s] Successfully split clone for snapshot [%v] of fileset [%v]", loggerId, snapName, FilesetName)
-				// delete snapshot after clone split.
-				err = conn.DeleteSnapshot(ctx, FilesystemName, FilesetName, snapName)
-				if err != nil {
-					return false, err
-				}
-				klog.Infof("[%s] Successfully deleted snapshot [%v] of fileset [%v]", loggerId, snapName, FilesetName)
-			}
-			// return false, status.Error(codes.Internal, fmt.Sprintf("volume fileset [%v] contains snapshot with prefix 'csiclone- %v'", FilesetName, csicloneSnapshotList))
-		} else if len(snapshotList) > 0 {
+
+		if len(snapshotList) > 0 {
 			return false, status.Error(codes.Internal, fmt.Sprintf("volume fileset [%v] contains one or more snapshot, delete snapshot/volumesnapshot", FilesetName))
 		}
 		klog.Infof("[%s] there is no snapshot present in the fileset [%v], continue DeleteFilesetVol", loggerId, FilesetName)
@@ -2615,7 +2579,7 @@ func (cs *ScaleControllerServer) DeleteCGFileset(ctx context.Context, Filesystem
 		}
 
 		// Delete independent fileset for consistency group
-		_, err = cs.DeleteFilesetVol(ctx, FilesystemName, volumeIdMembers.ConsistencyGroup, volumeIdMembers, conn, true, false)
+		_, err = cs.DeleteFilesetVol(ctx, FilesystemName, volumeIdMembers.ConsistencyGroup, volumeIdMembers, conn, true)
 		if err != nil {
 			return err
 		}
@@ -2734,11 +2698,6 @@ func (cs *ScaleControllerServer) ControllerModifyVolume(ctx context.Context, req
 func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	loggerId := utils.GetLoggerId(newctx)
 	ctx := utils.SetModuleName(newctx, deleteVolume)
-	//  TO BE REMOVED
-	os.Setenv("FUSION_ACCESS", "true")
-
-	// Check if the environment variable FUSION_ACCESS is set to true, if yes then validate the fileset type for source and destination volumes to be independent as fusion only supports independent filesets.
-	isFusionAccess := strings.EqualFold(os.Getenv("FUSION_ACCESS"), "true")
 
 	// Mask the secrets from request before logging
 	reqToLog := proto.Clone(req).(*csi.DeleteVolumeRequest)
@@ -2905,7 +2864,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 				if volumeIdMembers.VolType == FILE_INDEPENDENTFILESET_VOLUME {
 					checkForSnapshots = true
 				}
-				_, err := cs.DeleteFilesetVol(ctx, FilesystemName, FilesetName, volumeIdMembers, conn, checkForSnapshots, isFusionAccess)
+				_, err := cs.DeleteFilesetVol(ctx, FilesystemName, FilesetName, volumeIdMembers, conn, checkForSnapshots)
 				if err != nil {
 					return nil, err
 				}
