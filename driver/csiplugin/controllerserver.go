@@ -1088,7 +1088,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 			return nil, status.Error(codes.Internal, fmt.Sprintf("validation of checkCustomPathforSrcVolume failed: %v", err))
 		}
 
-		err = cs.createSnapshotTrackingDir(ctx, &snapIdMembers, scaleVol, isCGVolume, customPath)
+		err = cs.createSnapshotTrackingDir(ctx, &snapIdMembers, scaleVol, isCGVolume, true, customPath)
 		if err != nil {
 			return nil, err
 		}
@@ -1838,17 +1838,27 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 
 	sourceFsName := sourcevolume.FsName
 
+	sourceFsDetails, err := conn.GetFilesystemDetails(ctx, sourceFsName)
+    if err != nil {
+        return err
+    }
+
 	sourceFilesetResp, err := conn.GetFileSetResponseFromName(ctx, sourceFsName, sourcevolume.FsetName)
 	if err != nil {
 		return status.Error(codes.Internal, fmt.Sprintf("copyVolumeContentWithSnapshotClone - Unable to get source Fileset response for Fileset [%v] FS [%v] ClusterId [%v]", sourcevolume.FsetName, sourceFsName, sourcevolume.ClusterId))
 	}
 	klog.V(4).Infof("[%s] copyVolumeContentWithSnapshotClone - sourceFilesetResp [%+v]", loggerId, sourceFilesetResp)
 	klog.V(4).Infof("[%s] copyVolumeContentWithSnapshotClone - sourcevolume [%+v]", loggerId, sourcevolume)
+
 	sourcePath := ""
 	sourceMntPoint, _, found := strings.Cut(sourceFilesetResp.Config.Path, sourcevolume.FsetName)
+	customPath, _, customPathFound := strings.Cut(sourceMntPoint, sourceFsDetails.Mount.MountPoint)
 	if found {
 		sourcePath = fmt.Sprintf("%s/%s/.snapshots/%s/%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
 	}
+	if !customPathFound{
+        customPath = ""
+    }
 
 	targetPath := ""
 	if newvolume.VolDirBasePath != "" {
@@ -1863,7 +1873,7 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 		klog.Errorf("[%s] failed to clone copy volume from volume. Error: [%v]", loggerId, err)
 		return status.Error(codes.Internal, fmt.Sprintf("failed to clone copy volume from volume. Error: [%v]", err))
 	}
-	err = cs.createSnapshotTrackingDir(ctx, &sourcevolume, newvolume, false, "")
+	err = cs.createSnapshotTrackingDir(ctx, &sourcevolume, newvolume, false, false, customPath)
 	if err != nil {
 		return status.Error(codes.Internal, fmt.Sprintf("failed to create snapshot tracking directory. Error: [%v]", err))
 	} else {
@@ -2269,7 +2279,7 @@ func (cs *ScaleControllerServer) checkCustomPathforSrcVolume(ctx context.Context
 	}
 }
 
-func (cs *ScaleControllerServer) createSnapshotTrackingDir(ctx context.Context, sourcesnapshot *scaleSnapId, newvolume *scaleVolume, isCGVolume bool, customPath string) error {
+func (cs *ScaleControllerServer) createSnapshotTrackingDir(ctx context.Context, sourcesnapshot *scaleSnapId, newvolume *scaleVolume, isCGVolume bool, isShallowCopyVolume bool, customPath string) error {
 	loggerId := utils.GetLoggerId(ctx)
 	var snapshotPath, shallowCopyPath string
 
@@ -2282,7 +2292,7 @@ func (cs *ScaleControllerServer) createSnapshotTrackingDir(ctx context.Context, 
 	if customPath != "" {
 		shallowCopyPath = fmt.Sprintf("%s/%s/%s", customPath, snapshotPath, newvolume.VolName)
 	} else {
-		if newvolume.VmDiskOptimized {
+		if newvolume.VmDiskOptimized && !isShallowCopyVolume{
 			shallowCopyPath = fmt.Sprintf("%s/csiclone-%s", snapshotPath, newvolume.VolName)
 		} else {
 			shallowCopyPath = fmt.Sprintf("%s/%s", snapshotPath, newvolume.VolName)
