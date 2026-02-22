@@ -1107,7 +1107,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 			}
 		}
 
-		volID, volIDErr := cs.generateVolID(ctx, scaleVol, volFsInfo.UUID, isCGVolume, isShallowCopyVolume, shallowCopyTargetPath, scaleVol.VolName, srcFileset, srcSnapshot)
+		volID, volIDErr := cs.generateVolID(ctx, scaleVol, volFsInfo.UUID, isCGVolume, isShallowCopyVolume, shallowCopyTargetPath, scaleVol.VolName, "", "")
 		if volIDErr != nil {
 			return nil, volIDErr
 		}
@@ -1852,7 +1852,7 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 
 	sourcePath := ""
 	sourceMntPoint, _, found := strings.Cut(sourceFilesetResp.Config.Path, sourcevolume.FsetName)
-	customPath, _, customPathFound := strings.Cut(sourceMntPoint, sourceFsDetails.Mount.MountPoint)
+	customPath, customPathFound := strings.CutPrefix(sourceMntPoint, sourceFsDetails.Mount.MountPoint)
 	if found {
 		sourcePath = fmt.Sprintf("%s/%s/.snapshots/%s/%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
 	}
