@@ -2290,7 +2290,11 @@ func (cs *ScaleControllerServer) createSnapshotTrackingDir(ctx context.Context, 
 	}
 
 	if customPath != "" {
-		shallowCopyPath = fmt.Sprintf("%s/%s/%s", customPath, snapshotPath, newvolume.VolName)
+		if newvolume.VmDiskOptimized && !isShallowCopyVolume{
+			shallowCopyPath = fmt.Sprintf("%s/%s/csiclone-%s", customPath, snapshotPath, newvolume.VolName)
+		}else{
+			shallowCopyPath = fmt.Sprintf("%s/%s/%s", customPath, snapshotPath, newvolume.VolName)
+		}
 	} else {
 		if newvolume.VmDiskOptimized && !isShallowCopyVolume{
 			shallowCopyPath = fmt.Sprintf("%s/csiclone-%s", snapshotPath, newvolume.VolName)

@@ -490,7 +490,8 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 		klog.V(6).Infof("[%s] gpfs_util tier was set: %s", loggerId, tier)
 	}
 
-	if volumeTypeSpecified {
+	scaleVol.VmDiskOptimized = false
+	if 	 {
 		if isSCTypeSpecified {
 			return &scaleVolume{}, status.Error(codes.InvalidArgument, "The parameters \"version\" and \"volumeType\" in storage class are mutually exclusive")
 		}
@@ -515,15 +516,10 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 				scaleVol.VolDirBasePath = volDirPath
 				scaleVol.IsFilesetBased = true
 			}
-		} else {
-			return &scaleVolume{}, status.Error(codes.InvalidArgument, fmt.Sprintf("Invalid volumeType is specified: %s, only allowed value is: %s", volumeType, cacheVolume))
-		}
-	}
-
-	scaleVol.VmDiskOptimized = false
-	if scaleVol.StorageClassType == STORAGECLASS_CLASSIC && fsetType == independentFileset && volumeTypeSpecified {
-		if volumeType == vmdiskCloning{
+		}else if scaleVol.StorageClassType == STORAGECLASS_CLASSIC && fsetType == independentFileset &&volumeType == vmdiskCloning{
 			scaleVol.VmDiskOptimized = true
+		}else {
+			return &scaleVolume{}, status.Error(codes.InvalidArgument, fmt.Sprintf("Invalid volumeType is specified: %s, only allowed value is: %s", volumeType, cacheVolume))
 		}
 	}
 
