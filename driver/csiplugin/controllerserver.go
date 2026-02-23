@@ -741,7 +741,7 @@ func checkSCSupportedParams(params map[string]string) (string, bool) {
 			"volBackendFs", "volDirBasePath", "uid", "gid", "permissions",
 			"clusterId", "filesetType", "parentFileset", "inodeLimit", "nodeClass",
 			"version", "tier", "compression", "consistencyGroup", "shared",
-			"volumeType", "cacheMode", "volNamePrefix", "existingVolume", "filesetName", "volumeFeatures":
+			"volumeType", "cacheMode", "volNamePrefix", "existingVolume", "filesetName":
 			// These are valid parameters, do nothing here
 		default:
 			invalidParams = append(invalidParams, k)

@@ -46,7 +46,7 @@ const (
 	PvcNamespaceKey                = "csi.storage.k8s.io/pvc/namespace"
 	StaticFilesetNameAnnotationKey = "spectrumscale.csi.ibm.com/filesetName"
 	StaticFilesetNameKey           = "filesetName"
-	vmdiskCloning	               = "optimized-vmdisk-cloning"
+	vmdiskCloning	               = "vmdisk"
 )
 
 // AFM caching constants
@@ -192,7 +192,6 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 	cg, isCGSpecified := volOptions[connectors.UserSpecifiedConsistencyGroup]
 	shared, isSharedSpecified := volOptions[connectors.UserSpecifiedShared]
 	volNamePrefix, isVolNamePrefixSpecified := volOptions[connectors.UserSpecifiedVolNamePrefix]
-	volumeFeature, isVolumeFeatureSpecified := volOptions[connectors.UserSpecifiedVolumeFeatures]
 
 	volumeType, volumeTypeSpecified := volOptions[connectors.UserSpecifiedVolumeType]
 	cacheMode, cacheModeSpecified := volOptions[connectors.UserSpecifiedCacheMode]
@@ -522,8 +521,8 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 	}
 
 	scaleVol.VmDiskOptimized = false
-	if scaleVol.StorageClassType == STORAGECLASS_CLASSIC && fsetType == independentFileset && isVolumeFeatureSpecified {
-		if volumeFeature == vmdiskCloning{
+	if scaleVol.StorageClassType == STORAGECLASS_CLASSIC && fsetType == independentFileset && volumeTypeSpecified {
+		if volumeType == vmdiskCloning{
 			scaleVol.VmDiskOptimized = true
 		}
 	}
