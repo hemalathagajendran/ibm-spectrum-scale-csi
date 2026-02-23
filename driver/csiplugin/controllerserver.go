@@ -1839,9 +1839,9 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 	sourceFsName := sourcevolume.FsName
 
 	sourceFsDetails, err := conn.GetFilesystemDetails(ctx, sourceFsName)
-    if err != nil {
-        return err
-    }
+	if err != nil {
+		return err
+	}
 
 	sourceFilesetResp, err := conn.GetFileSetResponseFromName(ctx, sourceFsName, sourcevolume.FsetName)
 	if err != nil {
@@ -1856,9 +1856,9 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 	if found {
 		sourcePath = fmt.Sprintf("%s%s/.snapshots/%s/%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
 	}
-	if !customPathFound{
-        customPath = ""
-    }
+	if !customPathFound {
+		customPath = ""
+	}
 
 	targetPath := ""
 	if newvolume.VolDirBasePath != "" {
@@ -2289,14 +2289,14 @@ func (cs *ScaleControllerServer) createSnapshotTrackingDir(ctx context.Context, 
 		snapshotPath = fmt.Sprintf("%s/%s", sourcesnapshot.FsetName, sourcesnapshot.SnapName)
 	}
 
-	if customPath != "" && customPath != "/"{
-		if newvolume.VmDiskOptimized && !isShallowCopyVolume{
+	if customPath != "" && customPath != "/" {
+		if newvolume.VmDiskOptimized && !isShallowCopyVolume {
 			shallowCopyPath = fmt.Sprintf("%s/%s/csiclone-%s", customPath, snapshotPath, newvolume.VolName)
-		}else{
+		} else {
 			shallowCopyPath = fmt.Sprintf("%s/%s/%s", customPath, snapshotPath, newvolume.VolName)
 		}
 	} else {
-		if newvolume.VmDiskOptimized && !isShallowCopyVolume{
+		if newvolume.VmDiskOptimized && !isShallowCopyVolume {
 			shallowCopyPath = fmt.Sprintf("%s/csiclone-%s", snapshotPath, newvolume.VolName)
 		} else {
 			shallowCopyPath = fmt.Sprintf("%s/%s", snapshotPath, newvolume.VolName)
@@ -2390,7 +2390,7 @@ func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scale
 	}
 
 	if scaleVol.VmDiskOptimized {
-		if (sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || sourcevolume.VolType !=  FILE_VMDISKOPTIMIZED_VOLUME) && newvolume.FilesetType != independentFileset {
+		if (sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || sourcevolume.VolType != FILE_VMDISKOPTIMIZED_VOLUME) && newvolume.FilesetType != independentFileset {
 			return status.Error(codes.Internal, fmt.Sprintf("validation of volume cloning failed as the source [%s] and destination volume [%s] type should be independent [%s]", sourcevolume.VolType, newvolume.VolumeType, independentFileset))
 		}
 	}
@@ -2867,24 +2867,22 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 				return nil, err
 			}
 		}
-		if FilesetName != "" && volumeIdMembers.VolType == FILE_VMDISKOPTIMIZED_VOLUME {
+		if FilesetName != "" && volumeIdMembers.VolType == FILE_VMDISKOPTIMIZED_VOLUME && volumeIdMembers.ConsistencyGroup != "" {
 			// frame the snapshot reference path from volumehandle 0;4;13969002371730051245;3A610B0A:698F11BE;pvc-d86e1180-f179-443f-93f5-7c6465f33fb0:snapshot-a0506a59-2368-412a-b616-1377376c35b9;pvc-aecf25fa-f71c-422d-8a0d-fa94b0cd44ea;<path>
-			//Handle below code only when volumeIdMembers.ConsistencyGroup is not empty in volume handle
-			if volumeIdMembers.ConsistencyGroup != "" {
-				snapshotRefPath := ""
-				cloneChildRefPath := strings.Replace(volumeIdMembers.ConsistencyGroup, ":", "/", 1)
-				if relPath != ""{
-					custPathBefore, _, custPathFound := strings.Cut(relPath, FilesetName)
-					if custPathFound {
-						snapshotRefPath = fmt.Sprintf("%s%s", custPathBefore, cloneChildRefPath)
-					}else{
-						snapshotRefPath = cloneChildRefPath
-					}
+			//Handle below code only when volumeIdMembers.ConsistencyGroup is not empty in volume handle volume to volume clone.
+			snapshotRefPath := ""
+			cloneChildRefPath := strings.Replace(volumeIdMembers.ConsistencyGroup, ":", "/", 1)
+			if relPath != "" {
+				custPathBefore, _, custPathFound := strings.Cut(relPath, FilesetName)
+				if custPathFound {
+					snapshotRefPath = fmt.Sprintf("%s%s", custPathBefore, cloneChildRefPath)
+				} else {
+					snapshotRefPath = cloneChildRefPath
 				}
-				err := cs.DeleteCloneCopyRefPath(ctx, FilesystemName, FilesetName, snapshotRefPath, conn)
-				if err != nil {
-					return nil, err
-				}
+			}
+			err := cs.DeleteCloneCopyRefPath(ctx, FilesystemName, FilesetName, snapshotRefPath, conn)
+			if err != nil {
+				return nil, err
 			}
 			klog.V(4).Infof("[%s] Deleted DeleteCloneCopyRefPath for volume [%s]", loggerId, FilesetName)
 		}
