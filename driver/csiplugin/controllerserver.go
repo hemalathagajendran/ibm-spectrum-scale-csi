@@ -1854,7 +1854,7 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 	sourceMntPoint, _, found := strings.Cut(sourceFilesetResp.Config.Path, sourcevolume.FsetName)
 	customPath, customPathFound := strings.CutPrefix(sourceMntPoint, sourceFsDetails.Mount.MountPoint)
 	if found {
-		sourcePath = fmt.Sprintf("%s/%s/.snapshots/%s/%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
+		sourcePath = fmt.Sprintf("%s%s/.snapshots/%s/%s-data", sourceMntPoint, sourcevolume.FsetName, sourcevolume.SnapName, sourcevolume.FsetName)
 	}
 	if !customPathFound{
         customPath = ""
@@ -2289,7 +2289,7 @@ func (cs *ScaleControllerServer) createSnapshotTrackingDir(ctx context.Context, 
 		snapshotPath = fmt.Sprintf("%s/%s", sourcesnapshot.FsetName, sourcesnapshot.SnapName)
 	}
 
-	if customPath != "" {
+	if customPath != "" && customPath != "/"{
 		if newvolume.VmDiskOptimized && !isShallowCopyVolume{
 			shallowCopyPath = fmt.Sprintf("%s/%s/csiclone-%s", customPath, snapshotPath, newvolume.VolName)
 		}else{
@@ -2869,10 +2869,22 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 		}
 		if FilesetName != "" && volumeIdMembers.VolType == FILE_VMDISKOPTIMIZED_VOLUME {
 			// frame the snapshot reference path from volumehandle 0;4;13969002371730051245;3A610B0A:698F11BE;pvc-d86e1180-f179-443f-93f5-7c6465f33fb0:snapshot-a0506a59-2368-412a-b616-1377376c35b9;pvc-aecf25fa-f71c-422d-8a0d-fa94b0cd44ea;<path>
-			snapshotRefPath := strings.Replace(volumeIdMembers.ConsistencyGroup, ":", "/", 1)
-			err := cs.DeleteCloneCopyRefPath(ctx, FilesystemName, FilesetName, snapshotRefPath, conn)
-			if err != nil {
-				return nil, err
+			//Handle below code only when volumeIdMembers.ConsistencyGroup is not empty in volume handle
+			if volumeIdMembers.ConsistencyGroup != "" {
+				snapshotRefPath := ""
+				cloneChildRefPath := strings.Replace(volumeIdMembers.ConsistencyGroup, ":", "/", 1)
+				if relPath != ""{
+					custPathBefore, _, custPathFound := strings.Cut(relPath, FilesetName)
+					if custPathFound {
+						snapshotRefPath = fmt.Sprintf("%s%s", custPathBefore, cloneChildRefPath)
+					}else{
+						snapshotRefPath = cloneChildRefPath
+					}
+				}
+				err := cs.DeleteCloneCopyRefPath(ctx, FilesystemName, FilesetName, snapshotRefPath, conn)
+				if err != nil {
+					return nil, err
+				}
 			}
 			klog.V(4).Infof("[%s] Deleted DeleteCloneCopyRefPath for volume [%s]", loggerId, FilesetName)
 		}

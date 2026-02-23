@@ -491,12 +491,12 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 	}
 
 	scaleVol.VmDiskOptimized = false
-	if 	 {
+	if volumeTypeSpecified {
 		if isSCTypeSpecified {
 			return &scaleVolume{}, status.Error(codes.InvalidArgument, "The parameters \"version\" and \"volumeType\" in storage class are mutually exclusive")
 		}
 
-		if isUserInputFsetType {
+		if isUserInputFsetType && volumeType == cacheVolume {
 			return &scaleVolume{}, status.Error(codes.InvalidArgument, "The parameters \"filesetType\" and \"volumeType\" in storage class are mutually exclusive")
 		}
 
@@ -516,7 +516,7 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 				scaleVol.VolDirBasePath = volDirPath
 				scaleVol.IsFilesetBased = true
 			}
-		}else if scaleVol.StorageClassType == STORAGECLASS_CLASSIC && fsetType == independentFileset &&volumeType == vmdiskCloning{
+		}else if scaleVol.StorageClassType == STORAGECLASS_CLASSIC && fsetType == independentFileset && volumeType == vmdiskCloning{
 			scaleVol.VmDiskOptimized = true
 		}else {
 			return &scaleVolume{}, status.Error(codes.InvalidArgument, fmt.Sprintf("Invalid volumeType is specified: %s, only allowed value is: %s", volumeType, cacheVolume))
