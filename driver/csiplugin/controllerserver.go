@@ -3972,7 +3972,7 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 						if nlink > 2 {
 							klog.Infof("[%s] files exist inside the given path [%s]", loggerId, shallowCopyRefPath)
 							deleteSnapshot = false
-							return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteSnapshot - unable to delete snapshot [%s] as there is a reference for shallowcopy volume", snapIdMembers.SnapName))
+							return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteSnapshot - unable to delete snapshot [%s] as there is a reference for shallowcopy/clone volume", snapIdMembers.SnapName))
 						}
 					}
 
