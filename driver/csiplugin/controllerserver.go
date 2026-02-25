@@ -1048,6 +1048,12 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 		}
 	}
 
+	if scaleVol.VolumeType == vmdiskCloning{
+		if err := cs.checkVMDiskCloningSupport(assembledScaleversion); err != nil {
+			return nil, err
+		}
+	}
+
 	if isVolSource {
 		err = cs.validateCloneRequest(ctx, scaleVol, &srcVolumeIDMembers, scaleVol, volFsInfo, assembledScaleversion)
 		if err != nil {
@@ -2069,6 +2075,15 @@ func (cs *ScaleControllerServer) checkCacheVolumeSupport(assembledScaleversion s
 	versionCheck := checkMinScaleVersionValid(assembledScaleversion, "5230")
 	if !versionCheck {
 		return status.Error(codes.FailedPrecondition, "the minimum required IBM Storage Scale version for cache volume support with CSI is 5.2.3-0")
+	}
+	return nil
+}
+
+func (cs *ScaleControllerServer) checkVMDiskCloningSupport(assembledScaleversion string) error {
+	/* Verify IBM Storage Scale Version is not below 6.0.1-0 */
+	versionCheck := checkMinScaleVersionValid(assembledScaleversion, "6010")
+	if !versionCheck {
+		return status.Error(codes.FailedPrecondition, "the minimum required IBM Storage Scale version for VM disk cloning support with CSI is 6.0.1-0")
 	}
 	return nil
 }
