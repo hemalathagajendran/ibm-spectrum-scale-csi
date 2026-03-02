@@ -2223,7 +2223,7 @@ func (cs *ScaleControllerServer) validateShallowCopyVolume(ctx context.Context, 
 				return status.Error(codes.Internal, fmt.Sprintf("validation of shallow copy volume [%s] failed as filesystem [%s] is different from source pvc [%s] failed", newvolume.VolName, newvolume.VolBackendFs, sourcesnapshot.SnapName))
 			} else {
 				if sourcesnapshot.StorageClassType == STORAGECLASS_CLASSIC {
-					if !((newvolume.FilesetType == independentFileset && sourcesnapshot.VolType == FILE_INDEPENDENTFILESET_VOLUME) || (newvolume.FilesetType == dependentFileset && sourcesnapshot.VolType == FILE_DEPENDENTFILESET_VOLUME)) {
+					if !((newvolume.FilesetType == independentFileset && sourcesnapshot.VolType == FILE_INDEPENDENTFILESET_VOLUME) || (newvolume.FilesetType == dependentFileset && sourcesnapshot.VolType == FILE_DEPENDENTFILESET_VOLUME) || (newvolume.FilesetType == independentFileset && sourcesnapshot.VolType == FILE_VMDISKOPTIMIZED_VOLUME)) {
 						klog.Errorf("[%s] Filesettype is not same for both source snapshot and new volume", loggerId)
 						return status.Error(codes.Internal, "Filesettype is not same for both source snapshot and new volume")
 					}
