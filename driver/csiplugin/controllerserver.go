@@ -2889,15 +2889,21 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 			cloneChildRefPath := strings.Replace(volumeIdMembers.ConsistencyGroup, ":", "/", 1)
 			if relPath != "" {
 				srcFilesetName, _, _ := strings.Cut(volumeIdMembers.ConsistencyGroup, ":")
+				sourceFsDetails, err := conn.GetFilesystemDetails(ctx, FilesystemName)
+				if err != nil {
+					return nil, err
+				}
+
 				if srcFilesetName != ""{
 					sourceFilesetResp, err := conn.GetFileSetResponseFromName(ctx, FilesystemName, srcFilesetName)
 					if err != nil {
 						return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteVolume - Unable to get source Fileset response for Fileset [%v] FS [%v] ClusterId [%v]", srcFilesetName, FilesystemName, volumeIdMembers.ClusterId))
 					}
+					sourceMntPoint, _, _ := strings.Cut(sourceFilesetResp.Config.Path, srcFilesetName)
+					customPath, customPathFound := strings.CutPrefix(sourceMntPoint, sourceFsDetails.Mount.MountPoint)
 
-					sourceMntPoint, _, found := strings.Cut(sourceFilesetResp.Config.Path, srcFilesetName)
-					if found {
-						snapshotRefPath = fmt.Sprintf("%s%s", sourceMntPoint, cloneChildRefPath)
+					if customPathFound {
+						snapshotRefPath = fmt.Sprintf("%s%s", customPath, cloneChildRefPath)
 					} else {
 						snapshotRefPath = cloneChildRefPath
 					}
