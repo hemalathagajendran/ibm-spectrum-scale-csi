@@ -2882,41 +2882,6 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 				return nil, err
 			}
 		}
-		if FilesetName != "" && volumeIdMembers.VolType == FILE_VMDISKOPTIMIZED_VOLUME && volumeIdMembers.ConsistencyGroup != "" {
-			// frame the snapshot reference path from volumehandle 0;4;13969002371730051245;3A610B0A:698F11BE;pvc-d86e1180-f179-443f-93f5-7c6465f33fb0:snapshot-a0506a59-2368-412a-b616-1377376c35b9;pvc-aecf25fa-f71c-422d-8a0d-fa94b0cd44ea;<path>
-			//Handle below code only when volumeIdMembers.ConsistencyGroup is not empty in volume handle volume to volume clone.
-			snapshotRefPath := ""
-			cloneChildRefPath := strings.Replace(volumeIdMembers.ConsistencyGroup, ":", "/", 1)
-			if relPath != "" {
-				srcFilesetName, _, _ := strings.Cut(volumeIdMembers.ConsistencyGroup, ":")
-				sourceFsDetails, err := conn.GetFilesystemDetails(ctx, FilesystemName)
-				if err != nil {
-					return nil, err
-				}
-
-				if srcFilesetName != ""{
-					sourceFilesetResp, err := conn.GetFileSetResponseFromName(ctx, FilesystemName, srcFilesetName)
-					if err != nil {
-						return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteVolume - Unable to get source Fileset response for Fileset [%v] FS [%v] ClusterId [%v]", srcFilesetName, FilesystemName, volumeIdMembers.ClusterId))
-					}
-					sourceMntPoint, _, _ := strings.Cut(sourceFilesetResp.Config.Path, srcFilesetName)
-					customPath, customPathFound := strings.CutPrefix(sourceMntPoint, sourceFsDetails.Mount.MountPoint)
-
-					if customPathFound {
-						snapshotRefPath = fmt.Sprintf("%s%s", customPath, cloneChildRefPath)
-					} else {
-						snapshotRefPath = cloneChildRefPath
-					}
-				}else{
-                    return nil, status.Error(codes.Internal, fmt.Sprintf("unable to find source fileset name in %s", volumeIdMembers.ConsistencyGroup))
-                }
-			}
-			err := cs.DeleteCloneCopyRefPath(ctx, FilesystemName, FilesetName, snapshotRefPath, conn)
-			if err != nil {
-				return nil, err
-			}
-			klog.V(4).Infof("[%s] Deleted DeleteCloneCopyRefPath for volume [%s]", loggerId, FilesetName)
-		}
 		klog.Infof("[%s] Delete Volume FilesetName:[%s] and creator is IBM Storage Scale CSI driver", loggerId, FilesetName)
 
 		if FilesetName != "" {
@@ -2953,6 +2918,43 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 					if err != nil {
 						return nil, err
 					}
+				}
+
+				if FilesetName != "" && volumeIdMembers.VolType == FILE_VMDISKOPTIMIZED_VOLUME && volumeIdMembers.ConsistencyGroup != "" {
+					// frame the snapshot reference path from volumehandle 0;4;13969002371730051245;3A610B0A:698F11BE;pvc-d86e1180-f179-443f-93f5-7c6465f33fb0:snapshot-a0506a59-2368-412a-b616-1377376c35b9;pvc-aecf25fa-f71c-422d-8a0d-fa94b0cd44ea;<path>
+					//Handle below code only when volumeIdMembers.ConsistencyGroup is not empty in volume handle volume to volume clone.
+					snapshotRefPath := ""
+					cloneChildRefPath := strings.Replace(volumeIdMembers.ConsistencyGroup, ":", "/", 1)
+					if relPath != "" {
+						srcFilesetName, _, _ := strings.Cut(volumeIdMembers.ConsistencyGroup, ":")
+						sourceFsDetails, err := conn.GetFilesystemDetails(ctx, FilesystemName)
+						if err != nil {
+							return nil, err
+						}
+
+						if srcFilesetName != ""{
+							sourceFilesetResp, err := conn.GetFileSetResponseFromName(ctx, FilesystemName, srcFilesetName)
+							if err != nil {
+								return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteVolume - Unable to get source Fileset response for Fileset [%v] FS [%v] ClusterId [%v]", srcFilesetName, FilesystemName, volumeIdMembers.ClusterId))
+							}
+
+							sourceMntPoint, _, _ := strings.Cut(sourceFilesetResp.Config.Path, srcFilesetName)
+							customPath, customPathFound := strings.CutPrefix(sourceMntPoint, sourceFsDetails.Mount.MountPoint)
+
+							if customPathFound {
+								snapshotRefPath = fmt.Sprintf("%s%s", customPath, cloneChildRefPath)
+							} else {
+								snapshotRefPath = cloneChildRefPath
+							}
+						}else{
+                    		return nil, status.Error(codes.Internal, fmt.Sprintf("unable to find source fileset name in %s", volumeIdMembers.ConsistencyGroup))
+                		}
+					}
+					err := cs.DeleteCloneCopyRefPath(ctx, FilesystemName, FilesetName, snapshotRefPath, conn)
+					if err != nil {
+						return nil, err
+					}
+					klog.V(4).Infof("[%s] Deleted DeleteCloneCopyRefPath for volume [%s]", loggerId, FilesetName)
 				}
 
 				// Delete bucket keys for a cache volume
