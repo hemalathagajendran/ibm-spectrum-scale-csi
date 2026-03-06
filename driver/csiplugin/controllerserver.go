@@ -1048,7 +1048,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 		}
 	}
 
-	if scaleVol.VolumeType == vmdiskCloning{
+	if scaleVol.VolumeType == vmdiskCloning {
 		if err := cs.checkVMDiskCloningSupport(assembledScaleversion); err != nil {
 			return nil, err
 		}
@@ -2932,7 +2932,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 							return nil, err
 						}
 
-						if srcFilesetName != ""{
+						if srcFilesetName != "" {
 							sourceFilesetResp, err := conn.GetFileSetResponseFromName(ctx, FilesystemName, srcFilesetName)
 							if err != nil {
 								return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteVolume - Unable to get source Fileset response for Fileset [%v] FS [%v] ClusterId [%v]", srcFilesetName, FilesystemName, volumeIdMembers.ClusterId))
@@ -2946,9 +2946,9 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 							} else {
 								snapshotRefPath = cloneChildRefPath
 							}
-						}else{
-                    		return nil, status.Error(codes.Internal, fmt.Sprintf("unable to find source fileset name in %s", volumeIdMembers.ConsistencyGroup))
-                		}
+						} else {
+							return nil, status.Error(codes.Internal, fmt.Sprintf("unable to find source fileset name in %s", volumeIdMembers.ConsistencyGroup))
+						}
 					}
 					err := cs.DeleteCloneCopyRefPath(ctx, FilesystemName, FilesetName, snapshotRefPath, conn)
 					if err != nil {
