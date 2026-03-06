@@ -537,7 +537,7 @@ func (s *SpectrumRestV2) CreateSnapshotCloneCopy(ctx context.Context, filesystem
 	err = s.WaitForJobCompletion(ctx, snapCloneCopyResponse.Status.Code, snapCloneCopyResponse.Jobs[0].JobID)
 	if err != nil {
 		if strings.Contains(err.Error(), "EFSSP1102C") { // job failed as snapshot already exists
-			fmt.Println(err)
+			klog.Infof("[%s] snapshot clone copy already exists for snapshot %s: , fileset %s , error: %v", loggerId, snapshotName, filesetName, err)
 			return nil
 		}
 		klog.Errorf("[%s] unable to create snapshot clone copy for snapshot %s: fileset %s, error: %v", loggerId, snapshotName, filesetName, err)
@@ -567,8 +567,9 @@ func (s *SpectrumRestV2) CreateSnapshotCloneSplit(ctx context.Context, filesyste
 	}
 	err = s.WaitForJobCompletion(ctx, snapCloneSplitResponse.Status.Code, snapCloneSplitResponse.Jobs[0].JobID)
 	if err != nil {
+		// TODO: Need to check if this happens.
 		if strings.Contains(err.Error(), "EFSSP1102C") { // job failed as snapshot already exists
-			fmt.Println(err)
+			klog.Infof("[%s] snapshot clone split already done for fileset %s , error: %v", loggerId, filesetName, err)
 			return nil
 		}
 		klog.Errorf("[%s] unable to create snapshot clone split for filesetName %s: %v", loggerId, filesetName, err)

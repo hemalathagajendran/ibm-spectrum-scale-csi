@@ -96,8 +96,6 @@ type SpectrumScaleConnector interface {
 	DeleteSnapshot(ctx context.Context, filesystemName string, filesetName string, snapshotName string) error
 	CreateSnapshotCloneCopy(ctx context.Context, filesystemName, filesetName, snapshotName, sourcePath, targetFilesystemName, targetFileset, targetPath string) error
 	CreateSnapshotCloneSplit(ctx context.Context, filesystemName, filesetName string) error
-	// SnapshotCopy(ctx context.Context, filesystemName, filesetName, snapshotName string) error
-	// SnapshotRelativeCopy(ctx context.Context, filesystemName, filesetName, snapshotName, path string) error
 	GetSnapshotCloneChild(ctx context.Context, filesystemName, filesetName, snapshotName, sourcePath string) (string, error)
 	GetLatestFilesetSnapshots(ctx context.Context, filesystemName string, filesetName string) ([]Snapshot_v2, error)
 	GetSnapshotUid(ctx context.Context, filesystemName string, filesetName string, snapName string) (string, error)
