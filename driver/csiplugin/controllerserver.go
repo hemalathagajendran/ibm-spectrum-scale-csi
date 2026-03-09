@@ -4041,12 +4041,12 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 					}
 
 				} */
-				deleteSnapshotOldPath, err := cs.CheckShallowCopyReferencePath(ctx, conn, filesystemName, shallowCopyRefPath, false)
+				deleteSnapshotOldPath, err := cs.CheckShallowCopyReferencePath(ctx, conn, filesystemName, snapIdMembers.SnapName, shallowCopyRefPath, false)
 				if err != nil {
-					klog.Errorf("[%s] error while checking shallow copy reference path for new csi metadata path [%s] for snapshot %s: Error: %v", loggerId, shallowCopyRefPath, snapIdMembers.SnapName, err)
+					klog.Errorf("[%s] error while checking shallow copy reference path for old csi metadata path [%s] for snapshot %s: Error: %v", loggerId, shallowCopyRefPath, snapIdMembers.SnapName, err)
 					return nil, err
 				}
-				deleteSnapshotNewPath, err := cs.CheckShallowCopyReferencePath(ctx, conn, filesystemName, shallowCopyRefPathNewMetadata, true)
+				deleteSnapshotNewPath, err := cs.CheckShallowCopyReferencePath(ctx, conn, filesystemName, snapIdMembers.SnapName, shallowCopyRefPathNewMetadata, true)
 				if err != nil {
 					klog.Errorf("[%s] error while checking shallow copy reference path for new csi metadata path [%s] for snapshot %s: Error: %v", loggerId, shallowCopyRefPathNewMetadata, snapIdMembers.SnapName, err)
 					return nil, err
@@ -4072,7 +4072,7 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 	return &csi.DeleteSnapshotResponse{}, nil
 }
 
-func (cs *ScaleControllerServer) CheckShallowCopyReferencePath(ctx context.Context, conn connectors.SpectrumScaleConnector, filesystemName string, shallowCopyRefPath string, isShallowCopyRefPathNew bool) (bool, error) {
+func (cs *ScaleControllerServer) CheckShallowCopyReferencePath(ctx context.Context, conn connectors.SpectrumScaleConnector, filesystemName string, snapName string, shallowCopyRefPath string, isShallowCopyRefPathNew bool) (bool, error) {
 	deleteSnapshot := true
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] CheckShallowCopyReferencePath - checking shallow copy reference path for filesystem: [%s], shallowCopyRefPath :[%s], isShallowCopyRefPathNew :[%t]", loggerId, filesystemName, shallowCopyRefPath, isShallowCopyRefPathNew)
@@ -4085,24 +4085,24 @@ func (cs *ScaleControllerServer) CheckShallowCopyReferencePath(ctx context.Conte
 		}
 	}
 	if dirExists {
-		klog.Infof("[%s] dirExists for the path [%s] isShallowCopyRefPathNew :[%t]", loggerId, shallowCopyRefPath, isShallowCopyRefPathNew)
+		klog.V(4).Infof("[%s] dirExists for the path [%s] isShallowCopyRefPathNew :[%t]", loggerId, shallowCopyRefPath, isShallowCopyRefPathNew)
 		statInfo, err := conn.StatDirectory(ctx, filesystemName, shallowCopyRefPath)
 		if err != nil {
 			if !(strings.Contains(err.Error(), "EFSSG0264C") ||
 				strings.Contains(err.Error(), "does not exist")) {
-				klog.Errorf("[%s] unable to stat directory using FS [%s] at path [%s]. Error [%v]", loggerId, filesystemName, shallowCopyRefPath, isShallowCopyRefPathNew, err)
+				klog.Errorf("[%s] unable to stat directory using FS [%s] at path [%s] ,isShallowCopyRefPathNew :[%t] . Error [%v]", loggerId, filesystemName, shallowCopyRefPath, isShallowCopyRefPathNew, err)
 				deleteSnapshot = false
 			}
 		} else {
 			nlink, err := parseStatDirInfo(statInfo)
 			if err != nil {
-				klog.Errorf("[%s] invalid number of links [%d] returned in stat output for FS [%s] at path [%s]", loggerId, nlink, filesystemName, shallowCopyRefPath, isShallowCopyRefPathNew)
+				klog.Errorf("[%s] invalid number of links [%d] returned in stat output for FS [%s] at path [%s],isShallowCopyRefPathNew :[%t] ", loggerId, nlink, filesystemName, shallowCopyRefPath, isShallowCopyRefPathNew)
 				deleteSnapshot = false
 			}
 			if nlink > 2 {
-				klog.Infof("[%s] files exist inside the given path [%s]", loggerId, shallowCopyRefPath, isShallowCopyRefPathNew)
+				klog.Infof("[%s] files exist inside the given path [%s] ,isShallowCopyRefPathNew :[%t] ", loggerId, shallowCopyRefPath, isShallowCopyRefPathNew)
 				deleteSnapshot = false
-				return deleteSnapshot, status.Error(codes.Internal, fmt.Sprintf("DeleteSnapshot - unable to delete snapshot [%s] as there is a reference for shallowcopy/clone volume"))
+				return deleteSnapshot, status.Error(codes.Internal, fmt.Sprintf("DeleteSnapshot - unable to delete snapshot [%s] as there is a reference for shallowcopy/clone volume", snapName))
 			}
 		}
 	}
