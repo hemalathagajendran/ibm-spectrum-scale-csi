@@ -94,6 +94,9 @@ type SpectrumScaleConnector interface {
 	WaitForJobCompletionWithResp(ctx context.Context, statusCode int, jobID uint64) (GenericResponse, error)
 	CreateSnapshot(ctx context.Context, filesystemName string, filesetName string, snapshotName string) error
 	DeleteSnapshot(ctx context.Context, filesystemName string, filesetName string, snapshotName string) error
+	CreateSnapshotCloneCopy(ctx context.Context, filesystemName, filesetName, snapshotName, sourcePath, targetFilesystemName, targetFileset, targetPath string) error
+	CreateSnapshotCloneSplit(ctx context.Context, filesystemName, filesetName string) error
+	GetSnapshotCloneChild(ctx context.Context, filesystemName, filesetName, snapshotName, sourcePath string) (string, error)
 	GetLatestFilesetSnapshots(ctx context.Context, filesystemName string, filesetName string) ([]Snapshot_v2, error)
 	GetSnapshotUid(ctx context.Context, filesystemName string, filesetName string, snapName string) (string, error)
 	GetSnapshotCreateTimestamp(ctx context.Context, filesystemName string, filesetName string, snapName string) (string, error)
@@ -146,16 +149,15 @@ const (
 	AfmFileLookupRefreshInterval string = "afmFileLookupRefreshInterval"
 
 	// default value for AFM tuning parameters
-	AfmNumFlushThreadsDefault         = 4
-	AfmPrefetchThresholdDefault       = 0
-	AfmFileOpenRefreshIntervalDefault = "30"
-	AfmNumReadThreadsDefault          = 1
-	AfmObjectFastReaddirDefault       = "no"
-	AfmReadSparseThresholdDefault     = "128"
-	AfmDirLookupRefreshIntervalDefault = "60"
-	AfmDirOpenRefreshIntervalDefault   = "60"
+	AfmNumFlushThreadsDefault           = 4
+	AfmPrefetchThresholdDefault         = 0
+	AfmFileOpenRefreshIntervalDefault   = "30"
+	AfmNumReadThreadsDefault            = 1
+	AfmObjectFastReaddirDefault         = "no"
+	AfmReadSparseThresholdDefault       = "128"
+	AfmDirLookupRefreshIntervalDefault  = "60"
+	AfmDirOpenRefreshIntervalDefault    = "60"
 	AfmFileLookupRefreshIntervalDefault = "30"
-
 )
 
 func GetSpectrumScaleConnector(ctx context.Context, config settings.Clusters) (SpectrumScaleConnector, error) {
