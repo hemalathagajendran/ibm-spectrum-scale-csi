@@ -523,6 +523,10 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 		}
 	}
 
+	if scaleVol.VmDiskOptimized && scaleVol.Compression != "" {
+		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume: compression is not supported for vmDiskOptimized volume: %s", scaleVol.VolName))
+	}
+
 	if cacheModeSpecified && scaleVol.VolumeType != cacheVolume {
 		return &scaleVolume{}, status.Errorf(codes.InvalidArgument,
 			"The storage class parameter cacheMode can only be specified with volumeType=\"cache\"")
