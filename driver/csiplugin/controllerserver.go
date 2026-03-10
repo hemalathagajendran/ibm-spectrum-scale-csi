@@ -2879,13 +2879,13 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 		}
 
 		if FilesetName != "" && isPvcFromSnapshot {
-			err := cs.DeleteShallowCopyRefPath(ctx, FilesystemName, FilesetName, shallowCopyRefPath, volumeIdMembers.StorageClassType, independentFset, snapshotName, conn)
+			err := cs.DeleteShallowCopyRefPath(ctx, FilesystemName, FilesetName, shallowCopyRefPath, volumeIdMembers.StorageClassType, independentFset, snapshotName, conn, false)
 			if err != nil {
 				return nil, err
 			}
 
 			// Delete the new reference path created for shallow copy volume when .csimetadata directory is used to store the reference of shallowcopy volumes
-			err = cs.DeleteShallowCopyRefPath(ctx, FilesystemName, FilesetName, shallowCopyRefPathNew, volumeIdMembers.StorageClassType, independentFset, snapshotName, conn)
+			err = cs.DeleteShallowCopyRefPath(ctx, FilesystemName, FilesetName, shallowCopyRefPathNew, volumeIdMembers.StorageClassType, independentFset, snapshotName, conn, true)
 			if err != nil {
 				return nil, err
 			}
@@ -3025,9 +3025,9 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
-func (cs *ScaleControllerServer) DeleteShallowCopyRefPath(ctx context.Context, FilesystemName, FilesetName, ShallowCopyRefPath, storageClassType, independentFset, snapshotName string, conn connectors.SpectrumScaleConnector) error {
+func (cs *ScaleControllerServer) DeleteShallowCopyRefPath(ctx context.Context, FilesystemName, FilesetName, ShallowCopyRefPath, storageClassType, independentFset, snapshotName string, conn connectors.SpectrumScaleConnector, isNewCsiMetadata bool) error {
 	loggerId := utils.GetLoggerId(ctx)
-	klog.Infof("[%s] Deleting shallow copy reference path [%s]", loggerId, ShallowCopyRefPath)
+	klog.Infof("[%s] Deleting shallow copy reference path [%s] with isNewCsiMetadata [%t]", loggerId, ShallowCopyRefPath, isNewCsiMetadata)
 
 	if storageClassType == STORAGECLASS_ADVANCED {
 		klog.Infof("[%s] Target path in DeleteShallowCopyRefPath:[%s]", loggerId, ShallowCopyRefPath)
@@ -3041,7 +3041,7 @@ func (cs *ScaleControllerServer) DeleteShallowCopyRefPath(ctx context.Context, F
 		}
 	}
 	shallowCopyRefCompletePath := fmt.Sprintf("%s/%s", ShallowCopyRefPath, FilesetName)
-
+	klog.V(4).Infof("[%s] Deleting shallow copy reference complete path [%s]", loggerId, shallowCopyRefCompletePath)
 	isShallowCopyRefPathDeleted := false
 	err := conn.DeleteDirectory(ctx, FilesystemName, shallowCopyRefCompletePath, false)
 	if err != nil {
@@ -3072,7 +3072,7 @@ func (cs *ScaleControllerServer) DeleteShallowCopyRefPath(ctx context.Context, F
 				klog.Errorf("[%s] invalid number of links [%d] returned in stat output for FS [%s] at path [%s]", loggerId, nlink, FilesystemName, ShallowCopyRefPath)
 				return err
 			}
-
+			klog.V(4).Infof("[%s] number of links [%d] returned in stat output for FS [%s] at path [%s]", loggerId, nlink, FilesystemName, ShallowCopyRefPath)
 			if nlink == 2 {
 				err = conn.DeleteDirectory(ctx, FilesystemName, ShallowCopyRefPath, false)
 				if err != nil {
@@ -3987,7 +3987,6 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 				if customPath != "" {
 					shallowCopyRefPath = fmt.Sprintf("%s/%s/%s", customPath, snapIdMembers.FsetName, snapIdMembers.SnapName)
 					shallowCopyRefPathNewMetadata = fmt.Sprintf("%s/%s/.csimetadata/%s", customPath, snapIdMembers.FsetName, snapIdMembers.SnapName)
-
 				} else {
 					shallowCopyRefPath = fmt.Sprintf("%s/%s", snapIdMembers.FsetName, snapIdMembers.SnapName)
 					shallowCopyRefPathNewMetadata = fmt.Sprintf("%s/.csimetadata/%s", snapIdMembers.FsetName, snapIdMembers.SnapName)
