@@ -3806,7 +3806,11 @@ func (cs *ScaleControllerServer) DelSnapMetadataDir(ctx context.Context, conn co
 	klog.V(6).Infof("[%s] DelSnapMetadataDir - deleting snapshot metadata directory for filesystem: [%s], fileset: [%s], consistencyGroup :[%s], cgSnapName :[%s], metaSnapName :[%s], customPath :[%s], isNewCsiMetadata :[%t]", loggerId, filesystemName, filesetName, consistencyGroup, cgSnapName, metaSnapName, customPath, isNewCsiMetadata)
 	var cgpath, pathDir string
 	if isNewCsiMetadata {
-		cgpath = fmt.Sprintf("%s/.csimetadata/%s", consistencyGroup, cgSnapName)
+		if customPath != "" {
+			cgpath = fmt.Sprintf("%s/%s/.csimetadata/%s", customPath, consistencyGroup, cgSnapName)
+		} else {
+			cgpath = fmt.Sprintf("%s/.csimetadata/%s", consistencyGroup, cgSnapName)
+		}
 	} else {
 		if customPath != "" {
 			cgpath = fmt.Sprintf("%s/%s/%s", customPath, consistencyGroup, cgSnapName)
@@ -3850,11 +3854,13 @@ func (cs *ScaleControllerServer) DelSnapMetadataDir(ctx context.Context, conn co
 	klog.V(4).Infof("[%s] Target path in DelSnapMetadataDir for consistency group snapshot metadata directory:[%s] , isNewCsiMetadata:[%t]", loggerId, pathDir, isNewCsiMetadata)
 	statInfo, err := conn.StatDirectory(ctx, filesystemName, pathDir)
 	if err != nil {
-		if !(strings.Contains(err.Error(), "EFSSG0264C") ||
-			strings.Contains(err.Error(), "does not exist")) { // directory is already deleted
+		if strings.Contains(err.Error(), "EFSSG0264C") ||
+			strings.Contains(err.Error(), "does not exist") {
+			klog.V(4).Infof("[%s] DelSnapMetadataDir - consistency group snapshot metadata directory for FS [%v] at path [%v] is already deleted", loggerId, filesystemName, pathDir)
+			return true, nil
+		} else {
 			return false, status.Error(codes.Internal, fmt.Sprintf("unable to stat directory using FS [%v] at path [%v]. Error [%v]", filesystemName, pathDir, err))
 		}
-		return true, nil
 	}
 
 	nlink, err := parseStatDirInfo(statInfo)
@@ -4002,7 +4008,8 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 					klog.Errorf("[%s] DeleteSnapshot - error while deleting snapshot with new metadat path %s: Error: %v", loggerId, snapIdMembers.SnapName, snaperr)
 					return nil, snaperr
 				}
-				if delSnapOld || delSnapNew {
+				klog.Infof("[%s] DeleteSnapshot - delete snapshot metadata directory for snapshot [%s] with old csi metadata path response is [%t] and with new csi metadata path  response is [%t]", loggerId, snapIdMembers.SnapName, delSnapOld, delSnapNew)
+				if delSnapOld && delSnapNew {
 					filesetName = snapIdMembers.ConsistencyGroup
 					klog.V(4).Infof("[%s] DeleteSnapshot - for advanced storageClass we can delete snapshot [%s] from fileset [%s] under filesystem [%s]", loggerId, snapIdMembers.SnapName, filesetName, filesystemName)
 				} else {
