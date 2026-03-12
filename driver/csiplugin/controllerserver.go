@@ -2299,9 +2299,9 @@ func (cs *ScaleControllerServer) createSnapshotTrackingDir(ctx context.Context, 
 	var snapshotPath, shallowCopyPath string
 
 	if isCGVolume {
-		snapshotPath = fmt.Sprintf("%s/%s", sourcesnapshot.ConsistencyGroup, sourcesnapshot.SnapName)
+		snapshotPath = fmt.Sprintf("%s/.csimetadata/%s", sourcesnapshot.ConsistencyGroup, sourcesnapshot.SnapName)
 	} else {
-		snapshotPath = fmt.Sprintf("%s/%s", sourcesnapshot.FsetName, sourcesnapshot.SnapName)
+		snapshotPath = fmt.Sprintf("%s/.csimetadata/%s", sourcesnapshot.FsetName, sourcesnapshot.SnapName)
 	}
 
 	if customPath != "" && customPath != "/" {
@@ -2820,7 +2820,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 
 	klog.V(4).Infof("[%s] DeleteVolume : relPath %v", loggerId, relPath)
 	isPvcFromSnapshot := false
-	var shallowCopyRefPath string
+	var shallowCopyRefPath, shallowCopyRefPathNew string
 	var snapshotName string
 	var independentFset string
 
@@ -2833,7 +2833,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 					isPvcFromSnapshot = true
 					snapshotName = volPath[1]
 					if volumeIdMembers.StorageClassType == STORAGECLASS_ADVANCED {
-						independentFset = volumeIdMembers.ConsistencyGroup
+						independentFset = strings.TrimSuffix(before, "/")
 					} else {
 						fileset := volPath[2]
 						independentFset = strings.Replace(fileset, "-data", "", 1)
@@ -2842,8 +2842,10 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 					shallowCopyCustomPath := strings.Trim(customPath, "!/")
 					if shallowCopyCustomPath != "" {
 						shallowCopyRefPath = fmt.Sprintf("%s/%s/%s", shallowCopyCustomPath, independentFset, snapshotName)
+						shallowCopyRefPathNew = fmt.Sprintf("%s/%s/.csimetadata/%s", shallowCopyCustomPath, independentFset, snapshotName)
 					} else {
 						shallowCopyRefPath = fmt.Sprintf("%s/%s", independentFset, snapshotName)
+						shallowCopyRefPathNew = fmt.Sprintf("%s/.csimetadata/%s", independentFset, snapshotName)
 					}
 				}
 			} else {
@@ -2877,7 +2879,13 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 		}
 
 		if FilesetName != "" && isPvcFromSnapshot {
-			err := cs.DeleteShallowCopyRefPath(ctx, FilesystemName, FilesetName, shallowCopyRefPath, volumeIdMembers.StorageClassType, independentFset, snapshotName, conn)
+			err := cs.DeleteShallowCopyRefPath(ctx, FilesystemName, FilesetName, shallowCopyRefPath, volumeIdMembers.StorageClassType, independentFset, snapshotName, conn, false)
+			if err != nil {
+				return nil, err
+			}
+
+			// Delete the new reference path created for shallow copy volume when .csimetadata directory is used to store the reference of shallowcopy volumes
+			err = cs.DeleteShallowCopyRefPath(ctx, FilesystemName, FilesetName, shallowCopyRefPathNew, volumeIdMembers.StorageClassType, independentFset, snapshotName, conn, true)
 			if err != nil {
 				return nil, err
 			}
@@ -2924,7 +2932,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 					// frame the snapshot reference path from volumehandle 0;4;13969002371730051245;3A610B0A:698F11BE;pvc-d86e1180-f179-443f-93f5-7c6465f33fb0:snapshot-a0506a59-2368-412a-b616-1377376c35b9;pvc-aecf25fa-f71c-422d-8a0d-fa94b0cd44ea;<path>
 					//Handle below code only when volumeIdMembers.ConsistencyGroup is not empty in volume handle volume to volume clone.
 					snapshotRefPath := ""
-					cloneChildRefPath := strings.Replace(volumeIdMembers.ConsistencyGroup, ":", "/", 1)
+					cloneChildRefPath := strings.Replace(volumeIdMembers.ConsistencyGroup, ":", "/.csimetadata/", 1)
 					if relPath != "" {
 						srcFilesetName, _, _ := strings.Cut(volumeIdMembers.ConsistencyGroup, ":")
 						sourceFsDetails, err := conn.GetFilesystemDetails(ctx, FilesystemName)
@@ -3017,9 +3025,9 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 	return &csi.DeleteVolumeResponse{}, nil
 }
 
-func (cs *ScaleControllerServer) DeleteShallowCopyRefPath(ctx context.Context, FilesystemName, FilesetName, ShallowCopyRefPath, storageClassType, independentFset, snapshotName string, conn connectors.SpectrumScaleConnector) error {
+func (cs *ScaleControllerServer) DeleteShallowCopyRefPath(ctx context.Context, FilesystemName, FilesetName, ShallowCopyRefPath, storageClassType, independentFset, snapshotName string, conn connectors.SpectrumScaleConnector, isNewCsiMetadata bool) error {
 	loggerId := utils.GetLoggerId(ctx)
-	klog.Infof("[%s] Deleting shallow copy reference path [%s]", loggerId, ShallowCopyRefPath)
+	klog.Infof("[%s] Deleting shallow copy reference path [%s] with isNewCsiMetadata [%t]", loggerId, ShallowCopyRefPath, isNewCsiMetadata)
 
 	if storageClassType == STORAGECLASS_ADVANCED {
 		klog.Infof("[%s] Target path in DeleteShallowCopyRefPath:[%s]", loggerId, ShallowCopyRefPath)
@@ -3033,7 +3041,7 @@ func (cs *ScaleControllerServer) DeleteShallowCopyRefPath(ctx context.Context, F
 		}
 	}
 	shallowCopyRefCompletePath := fmt.Sprintf("%s/%s", ShallowCopyRefPath, FilesetName)
-
+	klog.V(4).Infof("[%s] Deleting shallow copy reference complete path [%s]", loggerId, shallowCopyRefCompletePath)
 	isShallowCopyRefPathDeleted := false
 	err := conn.DeleteDirectory(ctx, FilesystemName, shallowCopyRefCompletePath, false)
 	if err != nil {
@@ -3064,7 +3072,7 @@ func (cs *ScaleControllerServer) DeleteShallowCopyRefPath(ctx context.Context, F
 				klog.Errorf("[%s] invalid number of links [%d] returned in stat output for FS [%s] at path [%s]", loggerId, nlink, FilesystemName, ShallowCopyRefPath)
 				return err
 			}
-
+			klog.V(4).Infof("[%s] number of links [%d] returned in stat output for FS [%s] at path [%s]", loggerId, nlink, FilesystemName, ShallowCopyRefPath)
 			if nlink == 2 {
 				err = conn.DeleteDirectory(ctx, FilesystemName, ShallowCopyRefPath, false)
 				if err != nil {
@@ -3418,7 +3426,8 @@ func (cs *ScaleControllerServer) CheckNewSnapRequired(ctx context.Context, conn 
 
 func (cs *ScaleControllerServer) MakeSnapMetadataDir(ctx context.Context, conn connectors.SpectrumScaleConnector, filesystemName string, filesetName string, indepFileset string, cgSnapName string, metaSnapName string, finalcustomPath string) error {
 	loggerId := utils.GetLoggerId(ctx)
-	cgpath := fmt.Sprintf("%s/%s", indepFileset, cgSnapName)
+	klog.Infof("[%s] MakeSnapMetadataDir - creating snapshot metadata directory for fileset: [%s:%s], indepFileset :[%s], cgSnapName :[%s], metaSnapName :[%s], finalcustomPath :[%s]", loggerId, filesystemName, filesetName, indepFileset, cgSnapName, metaSnapName, finalcustomPath)
+	cgpath := fmt.Sprintf("%s/.csimetadata/%s", indepFileset, cgSnapName)
 
 	var path string
 	if finalcustomPath != "" {
@@ -3427,7 +3436,7 @@ func (cs *ScaleControllerServer) MakeSnapMetadataDir(ctx context.Context, conn c
 		path = fmt.Sprintf("%s/%s", cgpath, metaSnapName)
 	}
 
-	klog.Infof("[%s] Target path in MakeSnapMetadataDir:[%s]", loggerId, cgpath)
+	klog.Infof("[%s] Target path in MakeSnapMetadataDir cgpath:[%s] , path:[%s]", loggerId, cgpath, path)
 	lockSuccess := CgSnapshotLock(ctx, cgpath, true)
 	if !lockSuccess {
 		message := fmt.Sprintf("create snapshot failed to acquire the lock as another operation is in progress for the targetPath: [%s]", cgpath)
@@ -3791,18 +3800,26 @@ func (cs *ScaleControllerServer) isExistingSnapUseableForVol(ctx context.Context
 	return true, nil
 }
 
-func (cs *ScaleControllerServer) DelSnapMetadataDir(ctx context.Context, conn connectors.SpectrumScaleConnector, filesystemName string, consistencyGroup string, filesetName string, cgSnapName string, metaSnapName string, customPath string) (bool, error) {
+// TODO: changes for new path and old path
+func (cs *ScaleControllerServer) DelSnapMetadataDir(ctx context.Context, conn connectors.SpectrumScaleConnector, filesystemName string, consistencyGroup string, filesetName string, cgSnapName string, metaSnapName string, customPath string, isNewCsiMetadata bool) (bool, error) {
 	loggerId := utils.GetLoggerId(ctx)
-
-	var cgpath string
-	if customPath != "" {
-		cgpath = fmt.Sprintf("%s/%s/%s", customPath, consistencyGroup, cgSnapName)
+	klog.V(6).Infof("[%s] DelSnapMetadataDir - deleting snapshot metadata directory for filesystem: [%s], fileset: [%s], consistencyGroup :[%s], cgSnapName :[%s], metaSnapName :[%s], customPath :[%s], isNewCsiMetadata :[%t]", loggerId, filesystemName, filesetName, consistencyGroup, cgSnapName, metaSnapName, customPath, isNewCsiMetadata)
+	var cgpath, pathDir string
+	if isNewCsiMetadata {
+		if customPath != "" {
+			cgpath = fmt.Sprintf("%s/%s/.csimetadata/%s", customPath, consistencyGroup, cgSnapName)
+		} else {
+			cgpath = fmt.Sprintf("%s/.csimetadata/%s", consistencyGroup, cgSnapName)
+		}
 	} else {
-		cgpath = fmt.Sprintf("%s/%s", consistencyGroup, cgSnapName)
+		if customPath != "" {
+			cgpath = fmt.Sprintf("%s/%s/%s", customPath, consistencyGroup, cgSnapName)
+		} else {
+			cgpath = fmt.Sprintf("%s/%s", consistencyGroup, cgSnapName)
+		}
 	}
-	pathDir := fmt.Sprintf("%s/%s", cgpath, metaSnapName)
-
-	klog.Infof("[%s] Target path in DelSnapMetadataDir:[%s]", loggerId, cgpath)
+	pathDir = fmt.Sprintf("%s/%s", cgpath, metaSnapName)
+	klog.V(4).Infof("[%s] Target path in DelSnapMetadataDir cgpath:[%s], pathDir:[%s] , isNewCsiMetadata:[%t]", loggerId, cgpath, pathDir, isNewCsiMetadata)
 	lockSuccess := CgSnapshotLock(ctx, cgpath, true)
 	if !lockSuccess {
 		message := fmt.Sprintf("Delete snapshot failed to acquire the lock as another operation is in progress for the targetPath: [%s]", cgpath)
@@ -3821,19 +3838,29 @@ func (cs *ScaleControllerServer) DelSnapMetadataDir(ctx context.Context, conn co
 	}
 
 	// Now check if consistency group snapshot metadata directory can be deleted
-	if customPath != "" {
-		pathDir = fmt.Sprintf("%s/%s/%s", customPath, consistencyGroup, cgSnapName)
+	if isNewCsiMetadata {
+		if customPath != "" {
+			pathDir = fmt.Sprintf("%s/%s/.csimetadata/%s", customPath, consistencyGroup, cgSnapName)
+		} else {
+			pathDir = fmt.Sprintf("%s/.csimetadata/%s", consistencyGroup, cgSnapName)
+		}
 	} else {
-		pathDir = fmt.Sprintf("%s/%s", consistencyGroup, cgSnapName)
+		if customPath != "" {
+			pathDir = fmt.Sprintf("%s/%s/%s", customPath, consistencyGroup, cgSnapName)
+		} else {
+			pathDir = fmt.Sprintf("%s/%s", consistencyGroup, cgSnapName)
+		}
 	}
-
+	klog.V(4).Infof("[%s] Target path in DelSnapMetadataDir for consistency group snapshot metadata directory:[%s] , isNewCsiMetadata:[%t]", loggerId, pathDir, isNewCsiMetadata)
 	statInfo, err := conn.StatDirectory(ctx, filesystemName, pathDir)
 	if err != nil {
-		if !(strings.Contains(err.Error(), "EFSSG0264C") ||
-			strings.Contains(err.Error(), "does not exist")) { // directory is already deleted
+		if strings.Contains(err.Error(), "EFSSG0264C") ||
+			strings.Contains(err.Error(), "does not exist") {
+			klog.V(4).Infof("[%s] DelSnapMetadataDir - consistency group snapshot metadata directory for FS [%v] at path [%v] is already deleted", loggerId, filesystemName, pathDir)
+			return true, nil
+		} else {
 			return false, status.Error(codes.Internal, fmt.Sprintf("unable to stat directory using FS [%v] at path [%v]. Error [%v]", filesystemName, pathDir, err))
 		}
-		return true, nil
 	}
 
 	nlink, err := parseStatDirInfo(statInfo)
@@ -3844,7 +3871,7 @@ func (cs *ScaleControllerServer) DelSnapMetadataDir(ctx context.Context, conn co
 	klog.Infof("[%s] DelSnapMetadataDir - number of links for directory in FS [%v] at path [%v] is [%v]", loggerId, filesystemName, pathDir, nlink)
 
 	if nlink == 2 {
-		// directory can be deleted
+		// cg directory for metadata can be deleted
 		err := conn.DeleteDirectory(ctx, filesystemName, pathDir, true)
 		if err != nil {
 			if !(strings.Contains(err.Error(), "EFSSG0264C") ||
@@ -3913,7 +3940,7 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 		return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteSnapshot - unable to get the fileset %s details details. Error [%v]", snapIdMembers.FsetName, err))
 	}
 
-	var shallowCopyRefPath, customPath string
+	var shallowCopyRefPath, customPath, shallowCopyRefPathNewMetadata string
 	//skip delete if snapshot not exist, return success
 	if filesetExist {
 		snapExist := false
@@ -3959,27 +3986,36 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 			if snapIdMembers.StorageClassType == STORAGECLASS_CLASSIC {
 				if customPath != "" {
 					shallowCopyRefPath = fmt.Sprintf("%s/%s/%s", customPath, snapIdMembers.FsetName, snapIdMembers.SnapName)
+					shallowCopyRefPathNewMetadata = fmt.Sprintf("%s/%s/.csimetadata/%s", customPath, snapIdMembers.FsetName, snapIdMembers.SnapName)
 				} else {
 					shallowCopyRefPath = fmt.Sprintf("%s/%s", snapIdMembers.FsetName, snapIdMembers.SnapName)
+					shallowCopyRefPathNewMetadata = fmt.Sprintf("%s/.csimetadata/%s", snapIdMembers.FsetName, snapIdMembers.SnapName)
 				}
 			}
 
 			deleteSnapshot := true
 			filesetName := snapIdMembers.FsetName
 			if snapIdMembers.StorageClassType == STORAGECLASS_ADVANCED {
-				delSnap, snaperr := cs.DelSnapMetadataDir(ctx, conn, filesystemName, snapIdMembers.ConsistencyGroup, snapIdMembers.FsetName, snapIdMembers.SnapName, snapIdMembers.MetaSnapName, customPath)
+				delSnapOld, snaperr := cs.DelSnapMetadataDir(ctx, conn, filesystemName, snapIdMembers.ConsistencyGroup, snapIdMembers.FsetName, snapIdMembers.SnapName, snapIdMembers.MetaSnapName, customPath, false)
 				if snaperr != nil {
 					klog.Errorf("[%s] DeleteSnapshot - error while deleting snapshot %s: Error: %v", loggerId, snapIdMembers.SnapName, snaperr)
 					return nil, snaperr
 				}
-				if delSnap {
+				// delete the consistency group snapshot metadata directory with the new csi metadata path.
+				delSnapNew, snaperr := cs.DelSnapMetadataDir(ctx, conn, filesystemName, snapIdMembers.ConsistencyGroup, snapIdMembers.FsetName, snapIdMembers.SnapName, snapIdMembers.MetaSnapName, customPath, true)
+				if snaperr != nil {
+					klog.Errorf("[%s] DeleteSnapshot - error while deleting snapshot with new metadat path %s: Error: %v", loggerId, snapIdMembers.SnapName, snaperr)
+					return nil, snaperr
+				}
+				klog.Infof("[%s] DeleteSnapshot - delete snapshot metadata directory for snapshot [%s] with old csi metadata path response is [%t] and with new csi metadata path  response is [%t]", loggerId, snapIdMembers.SnapName, delSnapOld, delSnapNew)
+				if delSnapOld && delSnapNew {
 					filesetName = snapIdMembers.ConsistencyGroup
 					klog.V(4).Infof("[%s] DeleteSnapshot - for advanced storageClass we can delete snapshot [%s] from fileset [%s] under filesystem [%s]", loggerId, snapIdMembers.SnapName, filesetName, filesystemName)
 				} else {
 					deleteSnapshot = false
 				}
 			} else {
-				dirExists, err := conn.CheckIfFileDirPresent(ctx, filesystemName, shallowCopyRefPath)
+				/* dirExists, err := conn.CheckIfFileDirPresent(ctx, filesystemName, shallowCopyRefPath)
 				if err != nil {
 					if !(strings.Contains(err.Error(), "EFSSG0264C") ||
 						strings.Contains(err.Error(), "does not exist")) {
@@ -4009,9 +4045,21 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 						}
 					}
 
+				} */
+				deleteSnapshotOldPath, err := cs.CheckShallowCopyReferencePath(ctx, conn, filesystemName, snapIdMembers.SnapName, shallowCopyRefPath, false)
+				if err != nil {
+					klog.Errorf("[%s] error while checking shallow copy reference path for old csi metadata path [%s] for snapshot %s: Error: %v", loggerId, shallowCopyRefPath, snapIdMembers.SnapName, err)
+					return nil, err
+				}
+				deleteSnapshotNewPath, err := cs.CheckShallowCopyReferencePath(ctx, conn, filesystemName, snapIdMembers.SnapName, shallowCopyRefPathNewMetadata, true)
+				if err != nil {
+					klog.Errorf("[%s] error while checking shallow copy reference path for new csi metadata path [%s] for snapshot %s: Error: %v", loggerId, shallowCopyRefPathNewMetadata, snapIdMembers.SnapName, err)
+					return nil, err
+				}
+				if deleteSnapshotOldPath && deleteSnapshotNewPath {
+					deleteSnapshot = true
 				}
 			}
-
 			if deleteSnapshot {
 				klog.Infof("[%s] DeleteSnapshot - deleting snapshot [%s] from fileset [%s] under filesystem [%s]", loggerId, snapIdMembers.SnapName, filesetName, filesystemName)
 				snaperr := conn.DeleteSnapshot(ctx, filesystemName, filesetName, snapIdMembers.SnapName)
@@ -4021,11 +4069,50 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 				}
 				klog.Infof("[%s] DeleteSnapshot - successfully deleted snapshot [%s] from fileset [%s] under filesystem [%s]", loggerId, snapIdMembers.SnapName, filesetName, filesystemName)
 			}
-
+			/* 	else {
+				return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteSnapshot - unable to delete snapshot [%s] as failed to check the reference for shallowcopy/clone volume", snapIdMembers.SnapName))
+			} */
 		}
 	}
 
 	return &csi.DeleteSnapshotResponse{}, nil
+}
+
+func (cs *ScaleControllerServer) CheckShallowCopyReferencePath(ctx context.Context, conn connectors.SpectrumScaleConnector, filesystemName string, snapName string, shallowCopyRefPath string, isShallowCopyRefPathNew bool) (bool, error) {
+	deleteSnapshot := true
+	loggerId := utils.GetLoggerId(ctx)
+	klog.Infof("[%s] CheckShallowCopyReferencePath - checking shallow copy reference path for filesystem: [%s], shallowCopyRefPath :[%s], isShallowCopyRefPathNew :[%t]", loggerId, filesystemName, shallowCopyRefPath, isShallowCopyRefPathNew)
+	dirExists, err := conn.CheckIfFileDirPresent(ctx, filesystemName, shallowCopyRefPath)
+	if err != nil {
+		if !(strings.Contains(err.Error(), "EFSSG0264C") ||
+			strings.Contains(err.Error(), "does not exist")) {
+			klog.Errorf("[%s] unable to check if directory path [%s] exists in filesystem [%s]. Error : %v", loggerId, shallowCopyRefPath, filesystemName, err)
+			deleteSnapshot = false
+		}
+	}
+	if dirExists {
+		klog.V(4).Infof("[%s] dirExists for the path [%s] isShallowCopyRefPathNew :[%t]", loggerId, shallowCopyRefPath, isShallowCopyRefPathNew)
+		statInfo, err := conn.StatDirectory(ctx, filesystemName, shallowCopyRefPath)
+		if err != nil {
+			if !(strings.Contains(err.Error(), "EFSSG0264C") ||
+				strings.Contains(err.Error(), "does not exist")) {
+				klog.Errorf("[%s] unable to stat directory using FS [%s] at path [%s] ,isShallowCopyRefPathNew :[%t] . Error [%v]", loggerId, filesystemName, shallowCopyRefPath, isShallowCopyRefPathNew, err)
+				deleteSnapshot = false
+			}
+		} else {
+			nlink, err := parseStatDirInfo(statInfo)
+			if err != nil {
+				klog.Errorf("[%s] invalid number of links [%d] returned in stat output for FS [%s] at path [%s],isShallowCopyRefPathNew :[%t] ", loggerId, nlink, filesystemName, shallowCopyRefPath, isShallowCopyRefPathNew)
+				deleteSnapshot = false
+			}
+			if nlink > 2 {
+				klog.Infof("[%s] files exist inside the given path [%s] ,isShallowCopyRefPathNew :[%t] ", loggerId, shallowCopyRefPath, isShallowCopyRefPathNew)
+				deleteSnapshot = false
+				return deleteSnapshot, status.Error(codes.Internal, fmt.Sprintf("DeleteSnapshot - unable to delete snapshot [%s] as there is a reference for shallowcopy/clone volume", snapName))
+			}
+		}
+	}
+	return deleteSnapshot, nil
 }
 
 func (cs *ScaleControllerServer) ListSnapshots(ctx context.Context, req *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
