@@ -2186,7 +2186,7 @@ func (cs *ScaleControllerServer) validateSnapId(ctx context.Context, scaleVol *s
 			return status.Error(codes.Internal, fmt.Sprintf("source snapshot fs [%s] doesn't match with clone volume [%s]", sourcesnapshot.FsName, newvolume.VolBackendFs))
 		}
 
-		if newvolume.FilesetType != independentFileset {
+		if !newvolume.VmDiskOptimized {
 			return status.Error(codes.Internal, fmt.Sprintf("target volume [%s] is not an independent fileset", newvolume.VolName))
 		}
 	}
@@ -2405,8 +2405,8 @@ func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scale
 	}
 
 	if scaleVol.VmDiskOptimized {
-		if (sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || sourcevolume.VolType != FILE_VMDISKOPTIMIZED_VOLUME) && newvolume.FilesetType != independentFileset {
-			return status.Error(codes.Internal, fmt.Sprintf("validation of volume cloning failed as the source [%s] and destination volume [%s] type should be independent [%s]", sourcevolume.VolType, newvolume.VolumeType, independentFileset))
+		if (sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || sourcevolume.VolType != FILE_VMDISKOPTIMIZED_VOLUME) && !newvolume.VmDiskOptimized {
+			return status.Error(codes.Internal, fmt.Sprintf("validation of volume cloning failed either the source(independent fileset) [%s] and destination volume(vmdisk) [%s] type doesn't match", sourcevolume.VolType, newvolume.VolumeType ))
 		}
 	}
 

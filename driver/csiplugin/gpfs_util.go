@@ -313,7 +313,7 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 
 	/* Check if either fileset based or LW volume. */
 	if volDirPathSpecified {
-		if (fsetTypeSpecified && (fsetType == dependentFileset || fsetType == independentFileset)) || isSCAdvanced {
+		if (fsetTypeSpecified && (fsetType == dependentFileset || fsetType == independentFileset)) || isSCAdvanced || volumeType == vmdiskCloning{
 			scaleVol.IsFilesetBased = true
 		} else {
 			if inodeLimSpecified {
@@ -524,7 +524,7 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 	}
 
 	if scaleVol.VmDiskOptimized && scaleVol.Compression != "" {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume: compression is not supported for vmDiskOptimized volume: %s", scaleVol.VolName))
+		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume: compression is not supported for volume type vmdisk : %s", scaleVol.VolName))
 	}
 
 	if cacheModeSpecified && scaleVol.VolumeType != cacheVolume {
