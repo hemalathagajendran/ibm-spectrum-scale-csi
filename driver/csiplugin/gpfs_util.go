@@ -282,6 +282,11 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 		fsetType = independentFileset
 	}
 
+	if !fsetTypeSpecified && volDirPathSpecified && !isSCAdvanced && volumeType == vmdiskCloning{
+		fsetTypeSpecified = true
+		fsetType = independentFileset
+	}
+
 	if uidSpecified && uid == "" {
 		uidSpecified = false
 	}
@@ -313,7 +318,7 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 
 	/* Check if either fileset based or LW volume. */
 	if volDirPathSpecified {
-		if (fsetTypeSpecified && (fsetType == dependentFileset || fsetType == independentFileset)) || isSCAdvanced || volumeType == vmdiskCloning{
+		if (fsetTypeSpecified && (fsetType == dependentFileset || fsetType == independentFileset)) || isSCAdvanced || volumeType == vmdiskCloning {
 			scaleVol.IsFilesetBased = true
 		} else {
 			if inodeLimSpecified {
@@ -496,7 +501,7 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 			return &scaleVolume{}, status.Error(codes.InvalidArgument, "The parameters \"version\" and \"volumeType\" in storage class are mutually exclusive")
 		}
 
-		if isUserInputFsetType && volumeType == cacheVolume {
+		if isUserInputFsetType && (volumeType == cacheVolume || volumeType == vmdiskCloning) {
 			return &scaleVolume{}, status.Error(codes.InvalidArgument, "The parameters \"filesetType\" and \"volumeType\" in storage class are mutually exclusive")
 		}
 
@@ -518,6 +523,7 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 			}
 		}else if scaleVol.StorageClassType == STORAGECLASS_CLASSIC && fsetType == independentFileset && volumeType == vmdiskCloning{
 			scaleVol.VmDiskOptimized = true
+
 		}else {
 			return &scaleVolume{}, status.Error(codes.InvalidArgument, fmt.Sprintf("Invalid volumeType is specified: %s, only allowed value is: %s", volumeType, cacheVolume))
 		}

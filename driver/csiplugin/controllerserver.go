@@ -1789,7 +1789,7 @@ func (cs *ScaleControllerServer) copyShallowVolumeContent(ctx context.Context, n
 			return status.Error(codes.Internal, fmt.Sprintf("unable to check type of filesystem [%s]. Error: %v", newvolume.VolBackendFs, err))
 		}
 		remoteMntPt := remotefsDetails.Mount.MountPoint
-		targetPath = strings.Replace(targetPath, fsMntPt, remoteMntPt, 1)
+		targetPath = strings.Replace(targetPath, fsDetails.Mount.MountPoint, remoteMntPt, 1)
 	}
 
 	jobStatus, jobID, jobErr := conn.CopyDirectoryPath(ctx, sourcevolume.FsName, sLinkRelPath, targetPath, newvolume.NodeClass)
@@ -1872,6 +1872,21 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 	} else {
 		targetPath = fmt.Sprintf("%s/%s/%s-data", fsDetails.Mount.MountPoint, newvolume.VolName, newvolume.VolName)
 	}
+
+	if fsDetails.Type == filesystemTypeRemote {
+		remotefsDetails, err := conn.GetFilesystemDetails(ctx, newvolume.VolBackendFs)
+		if err != nil {
+			if strings.Contains(err.Error(), "Invalid value in filesystemName") {
+				klog.Errorf("[%s] filesystem %s in not known to cluster %s. Error: %v", loggerId, newvolume.VolBackendFs, newvolume.ClusterId, err)
+				return status.Error(codes.Internal, fmt.Sprintf("Filesystem %s in not known to cluster %s. Error: %v", newvolume.VolBackendFs, newvolume.ClusterId, err))
+			}
+			klog.Errorf("[%s] unable to check type of filesystem [%s]. Error: %v", loggerId, newvolume.VolBackendFs, err)
+			return status.Error(codes.Internal, fmt.Sprintf("unable to check type of filesystem [%s]. Error: %v", newvolume.VolBackendFs, err))
+		}
+		remoteMntPt := remotefsDetails.Mount.MountPoint
+		targetPath = strings.Replace(targetPath, fsDetails.Mount.MountPoint, remoteMntPt, 1)
+	}
+
 
 	klog.Infof("[%s] sourcePath:[%s], targetPath:[%s]", loggerId, sourcePath, targetPath)
 	err = conn.CreateSnapshotCloneCopy(ctx, sourcevolume.FsName, sourcevolume.FsetName, sourcevolume.SnapName, sourcePath, newvolume.VolBackendFs, newvolume.VolName, targetPath)
@@ -2181,12 +2196,18 @@ func (cs *ScaleControllerServer) validateSnapId(ctx context.Context, scaleVol *s
 		return status.Error(codes.Internal, fmt.Sprintf("snapshot [%v] does not exist for fileset [%v]", sourcesnapshot.SnapName, filesetToCheck))
 	}
 
+	if sourcesnapshot.VolType == FILE_VMDISKOPTIMIZED_VOLUME {
+		if scaleVol.FilesetType == independentFileset && !scaleVol.VmDiskOptimized {
+			return status.Error(codes.Internal, "creating independent fileset based volume from vm-disk-optimized snapshot is not supported")
+		}
+	}
+
 	if scaleVol.VmDiskOptimized {
 		if sourcesnapshot.FsName != newvolume.VolBackendFs {
 			return status.Error(codes.Internal, fmt.Sprintf("source snapshot fs [%s] doesn't match with clone volume [%s]", sourcesnapshot.FsName, newvolume.VolBackendFs))
 		}
 
-		if !newvolume.VmDiskOptimized {
+		if newvolume.FilesetType != independentFileset {
 			return status.Error(codes.Internal, fmt.Sprintf("target volume [%s] is not an independent fileset", newvolume.VolName))
 		}
 	}
@@ -2401,6 +2422,12 @@ func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scale
 	if sourcevolume.FsName != newvolume.VolBackendFs {
 		if sourceFsDetails.Mount.Status != "mounted" {
 			return status.Error(codes.Internal, fmt.Sprintf("filesystem %s is not mounted on GUI node", sourcevolume.FsName))
+		}
+	}
+
+	if sourcevolume.VolType == FILE_VMDISKOPTIMIZED_VOLUME {
+		if scaleVol.FilesetType == independentFileset && !scaleVol.VmDiskOptimized {
+			return status.Error(codes.Internal, "creating independent fileset based volume from vm-disk-optimized volume is not supported")
 		}
 	}
 
