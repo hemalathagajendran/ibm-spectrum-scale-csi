@@ -1789,7 +1789,7 @@ func (cs *ScaleControllerServer) copyShallowVolumeContent(ctx context.Context, n
 			return status.Error(codes.Internal, fmt.Sprintf("unable to check type of filesystem [%s]. Error: %v", newvolume.VolBackendFs, err))
 		}
 		remoteMntPt := remotefsDetails.Mount.MountPoint
-		targetPath = strings.Replace(targetPath, fsDetails.Mount.MountPoint, remoteMntPt, 1)
+		targetPath = strings.Replace(targetPath, fsMntPt, remoteMntPt, 1)
 	}
 
 	jobStatus, jobID, jobErr := conn.CopyDirectoryPath(ctx, sourcevolume.FsName, sLinkRelPath, targetPath, newvolume.NodeClass)
