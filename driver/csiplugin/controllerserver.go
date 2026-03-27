@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math"
 	"net/url"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -36,6 +37,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/klog/v2"
 )
 
@@ -52,7 +54,8 @@ const (
 	maximumPVSize              uint64 = 931322 * 1024 * 1024 * 1024 * 1024 // 999999999999999K
 	maximumPVSizeForLog               = "953673728GiB"
 	defaultSnapWindow                 = "30" // default snapWindow for Consistency Group snapshots is 30 minutes
-	softQuotaPercent                  = 70   // This value is % of the hardQuotaLimit e.g. 70%
+	cgPrefixLen                       = 37
+	softQuotaPercent                  = 70 // This value is % of the hardQuotaLimit e.g. 70%
 	intermittentFusionSnapshot        = "csiclone"
 
 	discoverCGFilesetDisabled = "DISABLED"
@@ -297,7 +300,7 @@ func (cs *ScaleControllerServer) setQuota(ctx context.Context, scVol *scaleVolum
 }
 
 // createFilesetBasedVol: Create fileset based volume  - return relative path of volume created
-func (cs *ScaleControllerServer) createFilesetBasedVol(ctx context.Context, scVol *scaleVolume, isCGVolume bool, cacheVolId *cacheVolumeId) (string, error) { //nolint:gocyclo,funlen
+func (cs *ScaleControllerServer) createFilesetBasedVol(ctx context.Context, scVol *scaleVolume, isCGVolume bool, fsType string, cacheVolId *cacheVolumeId) (string, error) { //nolint:gocyclo,funlen
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] volume: [%v] - ControllerServer:createFilesetBasedVol , gatewayNodeName:[%s]", loggerId, scVol.VolName, cacheVolId.GateWayNode)
 	opt := make(map[string]interface{})
@@ -364,6 +367,25 @@ func (cs *ScaleControllerServer) createFilesetBasedVol(ctx context.Context, scVo
 
 	if isCGVolume {
 		// For new storageClass first create independent fileset if not present
+		// Check if we're in DR mode (CNSADeployment presence)
+		_, cnsaPresence := os.LookupEnv(ENVClusterCNSAPresenceCheck)
+		if cnsaPresence {
+			isMDREnabledOnFS := cs.isMDREnabledOnFS(ctx, scVol.VolBackendFs)
+			klog.V(4).Infof("[%s] isMDREnabledOnFS for MDR is : %t", loggerId, isMDREnabledOnFS)
+
+			if isMDREnabledOnFS && len(scVol.ConsistencyGroup) > cgPrefixLen {
+				// Check for consistencyGroup
+				if fsType != filesystemTypeRemote {
+					newcg, err := cs.validateCG(ctx, scVol.Connector, scVol.VolBackendFs, scVol.ConsistencyGroup)
+					if err != nil {
+						klog.Errorf("ValidateCG failed for MDR . Error: %v", err)
+						klog.Errorf("[%s] failed to validate CG for MDR fileset [%v] in filesystem [%v]. Error: %v", loggerId, scVol.VolName, scVol.VolBackendFs, err)
+						return "", err
+					}
+					scVol.ConsistencyGroup = newcg
+				}
+			}
+		}
 
 		indepFilesetName := scVol.ConsistencyGroup
 		klog.Infof("[%s] creating independent fileset for new storageClass with fileset name: [%v]", loggerId, indepFilesetName)
@@ -718,14 +740,45 @@ func getNfsTuningParams(ctx context.Context) []string {
 	return []string{connectors.AfmFileOpenRefreshInterval, connectors.AfmDirLookupRefreshInterval, connectors.AfmDirOpenRefreshInterval, connectors.AfmFileLookupRefreshInterval}
 }
 
-func (cs *ScaleControllerServer) getConnFromClusterID(ctx context.Context, cid string) (connectors.SpectrumScaleConnector, error) {
+func (cs *ScaleControllerServer) getConnFromClusterID(ctx context.Context, cid string, fsUUID string) (connectors.SpectrumScaleConnector, string, error) {
 	loggerId := utils.GetLoggerId(ctx)
 	connector, isConnPresent := cs.Driver.connmap[cid]
 	if isConnPresent {
-		return connector, nil
+		return connector, "", nil
 	}
+	klog.V(4).Infof("[%s] cluster ID %v not found in connmap, checking environment variables", loggerId, cid)
+	// Check if we're in DR mode (CNSADeployment presence)
+	_, cnsaPresence := os.LookupEnv(ENVClusterCNSAPresenceCheck)
+
+	// DR fallback: If cluster ID not found and fsUUID is provided, check primary cluster
+	if fsUUID != "" && cnsaPresence {
+		klog.V(4).Infof("[%s] cluster ID %v not found, attempting DR fallback with filesystem UUID %v", loggerId, cid, fsUUID)
+
+		primaryConn, primaryClusterID, err := cs.getPrimaryClusterDetails(ctx)
+		if err != nil {
+			klog.Errorf("[%s] unable to get primary cluster details for DR fallback: %v", loggerId, err)
+			return nil, "", status.Error(codes.Internal, fmt.Sprintf("unable to find cluster [%v] details in custom resource", cid))
+		}
+
+		// Check if filesystem with this UUID exists in primary cluster
+		fsName, err := primaryConn.GetFilesystemName(ctx, fsUUID)
+		if err != nil {
+			klog.Errorf("[%s] filesystem with UUID %v not found in primary cluster: %v", loggerId, fsUUID, err)
+			return nil, "", status.Error(codes.Internal, fmt.Sprintf("unable to find cluster [%v] details in custom resource", cid))
+		}
+		isMDREnabledOnFS := cs.isMDREnabledOnFS(ctx, fsName)
+		klog.V(4).Infof("[%s] isMDREnabledOnFS for MDR is : %t", loggerId, isMDREnabledOnFS)
+		if isMDREnabledOnFS {
+			klog.Infof("[%s] DR fallback successful: found filesystem %v with UUID %v in primary cluster %v", loggerId, fsName, fsUUID, primaryClusterID)
+			return primaryConn, primaryClusterID, nil
+		} else {
+			klog.Errorf("[%s] filesystem with UUID %v in primary cluster %v does not have MDR enabled", loggerId, fsUUID, primaryClusterID)
+			return nil, "", status.Error(codes.Internal, fmt.Sprintf("filesystem with UUID %v in primary cluster %v does not have MDR enabled", fsUUID, primaryClusterID))
+		}
+	}
+
 	klog.Errorf("[%s] unable to get connector for cluster ID %v", loggerId, cid)
-	return nil, status.Error(codes.Internal, fmt.Sprintf("unable to find cluster [%v] details in custom resource", cid))
+	return nil, "", status.Error(codes.Internal, fmt.Sprintf("unable to find cluster [%v] details", cid))
 }
 
 // checkSCSupportedParams checks if given CreateVolume request parameter keys
@@ -923,15 +976,25 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 			klog.V(4).Infof("[%s] Static volume [%s] with sc parameter filesetName:[%s]", loggerId, volName, filesetName)
 		} else {
 			// Fetch filesetName, if annotation key "spectrumscale.csi.ibm.com/filesetName" is present otherwise filesetName is the PVC name
-			pvc, err := cs.Driver.clientset.CoreV1().PersistentVolumeClaims(scParams[PvcNamespaceKey]).Get(context.TODO(), scParams[PvcNameKey], metav1.GetOptions{})
+
+			gvr := schema.GroupVersionResource{
+				Group:    "", // core API group
+				Version:  "v1",
+				Resource: "persistentvolumeclaims",
+			}
+
+			pvc, err := cs.Driver.dynamicClient.Resource(gvr).Namespace(scParams[PvcNamespaceKey]).
+				Get(context.TODO(), scParams[PvcNameKey], metav1.GetOptions{})
+
 			if err != nil {
 				klog.Errorf("[%s] Failed to get PVC detail for fetching filesetName from annotation with error %v", loggerId, err)
 				return nil, status.Error(codes.Internal, fmt.Sprintf(" Failed to get PVC detail for fetching filesetName from annotation with error %v", err))
 			}
-			klog.V(4).Infof("[%s] Annotations of the PVC [%s] , annotation [%v]", loggerId, volName, pvc.Annotations)
-			if pvc.Annotations != nil && pvc.Annotations[StaticFilesetNameAnnotationKey] != "" {
+			annotations := pvc.GetAnnotations()
+			klog.V(4).Infof("[%s] Annotations of the PVC [%s] , annotation [%v]", loggerId, volName, annotations)
+			if annotations != nil && annotations[StaticFilesetNameAnnotationKey] != "" {
 				// from PVC annotation
-				filesetName = pvc.Annotations[StaticFilesetNameAnnotationKey]
+				filesetName = annotations[StaticFilesetNameAnnotationKey]
 			} else {
 				// Fetch filesetName from parameter "csi.storage.k8s.io/pvc/name" i.e PVC name
 				filesetName = scParams[PvcNameKey]
@@ -1128,7 +1191,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 		}, nil
 	}
 
-	klog.Infof("[%s] volume:[%v] -  IBM Storage Scale volume create params : %v\n", loggerId, scaleVol.VolName, scaleVol)
+	klog.Infof("[%s] volume:[%v] -  IBM Storage Scale volume create params : %v , Connector: %v\n", loggerId, scaleVol.VolName, scaleVol, scaleVol.Connector)
 
 	if scaleVol.VmDiskOptimized && scaleVol.Compression != "" {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume: compression is not supported for vmDiskOptimized volume: %s", scaleVol.VolName))
@@ -1199,7 +1262,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 		capacity := uint64(capRange.GetRequiredBytes()) // #nosec G115 -- false positive
 		targetPath, err = cs.createStaticBasedVol(ctx, scaleVol, filesetName, capacity)
 	} else if scaleVol.IsFilesetBased {
-		targetPath, err = cs.createFilesetBasedVol(ctx, scaleVol, isCGVolume, cacheVolId)
+		targetPath, err = cs.createFilesetBasedVol(ctx, scaleVol, isCGVolume, volFsInfo.Type, cacheVolId)
 	} else {
 		targetPath, err = cs.createLWVol(ctx, scaleVol)
 	}
@@ -1541,7 +1604,7 @@ func (cs *ScaleControllerServer) setScaleVolumeWithRemoteCluster(ctx context.Con
 				scaleVol.ClusterId = primaryClusterID
 			}
 		}
-		conn, err := cs.getConnFromClusterID(ctx, scaleVol.ClusterId)
+		conn, _, err := cs.getConnFromClusterID(ctx, scaleVol.ClusterId, volFsInfo.UUID)
 		if err != nil {
 			return err
 		}
@@ -1686,7 +1749,7 @@ func (cs *ScaleControllerServer) getCopyJobStatus(ctx context.Context, req *csi.
 func (cs *ScaleControllerServer) copySnapContent(ctx context.Context, scVol *scaleVolume, snapId scaleSnapId, fsDetails connectors.FileSystem_v2, targetPath string, volID string) error {
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] copySnapContent snapId: [%v], scaleVolume: [%v]", loggerId, snapId, scVol)
-	conn, err := cs.getConnFromClusterID(ctx, snapId.ClusterId)
+	conn, _, err := cs.getConnFromClusterID(ctx, snapId.ClusterId, snapId.FsUUID)
 	if err != nil {
 		return err
 	}
@@ -1764,7 +1827,7 @@ func (cs *ScaleControllerServer) copySnapContent(ctx context.Context, scVol *sca
 func (cs *ScaleControllerServer) copyShallowVolumeContent(ctx context.Context, newvolume *scaleVolume, sourcevolume scaleVolId, fsDetails connectors.FileSystem_v2, targetPath string, volID string) error {
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] copyShallowVolContent volume ID: [%v], scaleVolume: [%v], volume name: [%v]", loggerId, sourcevolume, newvolume, newvolume.VolName)
-	conn, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId)
+	conn, _, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId, sourcevolume.FsUUID)
 	if err != nil {
 		return err
 	}
@@ -1837,7 +1900,7 @@ func (cs *ScaleControllerServer) copyShallowVolumeContent(ctx context.Context, n
 func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.Context, newvolume *scaleVolume, sourcevolume scaleSnapId, fsDetails connectors.FileSystem_v2) error {
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] copyVolumeContentWithIntermittentSnapshot volume ID: [%v], scaleVolume: [%v], volume name: [%v]", loggerId, sourcevolume, newvolume, newvolume.VolName)
-	conn, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId)
+	conn, _, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId, sourcevolume.FsUUID)
 	if err != nil {
 		return err
 	}
@@ -1892,7 +1955,7 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 func (cs *ScaleControllerServer) copyVolumeContent(ctx context.Context, newvolume *scaleVolume, sourcevolume scaleVolId, fsDetails connectors.FileSystem_v2, targetPath string, volID string) error {
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] copyVolContent volume ID: [%v], scaleVolume: [%v], volume name: [%v]", loggerId, sourcevolume, newvolume, newvolume.VolName)
-	conn, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId)
+	conn, _, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId, sourcevolume.FsUUID)
 	if err != nil {
 		return err
 	}
@@ -2106,13 +2169,16 @@ func (cs *ScaleControllerServer) validateSnapId(ctx context.Context, scaleVol *s
 
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] validateSnapId [%v]", loggerId, sourcesnapshot)
-	conn, err := cs.getConnFromClusterID(ctx, sourcesnapshot.ClusterId)
+	conn, primaryClusterID, err := cs.getConnFromClusterID(ctx, sourcesnapshot.ClusterId, sourcesnapshot.FsUUID)
 	if err != nil {
 		return err
 	}
 
 	// Restrict cross cluster cloning
-	if newvolume.ClusterId != sourcesnapshot.ClusterId {
+	if primaryClusterID != "" {
+		klog.V(4).Infof("[%s] setting sourcesnapshot ClusterId for Metro DR to primaryClusterID [%v]", loggerId, primaryClusterID)
+		sourcesnapshot.ClusterId = primaryClusterID
+	} else if newvolume.ClusterId != sourcesnapshot.ClusterId {
 		return status.Error(codes.Unimplemented, "creating volume from snapshot across clusters is not supported")
 	}
 
@@ -2343,7 +2409,7 @@ func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scale
 	loggerId := utils.GetLoggerId(ctx)
 	klog.Infof("[%s] validateVolId [%v]", loggerId, sourcevolume)
 
-	conn, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId)
+	conn, primaryClusterID, err := cs.getConnFromClusterID(ctx, sourcevolume.ClusterId, sourcevolume.FsUUID)
 	if err != nil {
 		return err
 	}
@@ -2359,8 +2425,10 @@ func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scale
 		return status.Error(codes.Unimplemented, "cloning of cache volume is not supported")
 	}
 
-	// Restrict cross cluster cloning
-	if newvolume.ClusterId != sourcevolume.ClusterId {
+	if primaryClusterID != "" {
+		klog.V(4).Infof("[%s] setting sourcevolume ClusterId for Metro DR to primaryClusterID [%v]", loggerId, primaryClusterID)
+		sourcevolume.ClusterId = primaryClusterID
+	} else if newvolume.ClusterId != sourcevolume.ClusterId {
 		return status.Error(codes.Unimplemented, "cloning of volume across clusters is not supported")
 	}
 
@@ -2462,7 +2530,7 @@ func (cs *ScaleControllerServer) isSourceVolORSnapSourceVolStatic(ctx context.Co
 	}
 
 	if storageClassType == STORAGECLASS_CLASSIC {
-		conn, err := cs.getConnFromClusterID(ctx, clusterID)
+		conn, _, err := cs.getConnFromClusterID(ctx, clusterID, fsUUID)
 		if err != nil {
 			return err
 		}
@@ -2654,7 +2722,7 @@ func (cs *ScaleControllerServer) ControllerModifyVolume(ctx context.Context, req
 		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("ControllerModifyVolume - Error in source Volume ID %v: %v", volumeId, err))
 	}
 
-	conn, err := cs.getConnFromClusterID(ctx, volumeIDMembers.ClusterId)
+	conn, _, err := cs.getConnFromClusterID(ctx, volumeIDMembers.ClusterId, volumeIDMembers.FsUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -2758,7 +2826,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 		klog.V(4).Infof("[%s] Volume is IsFilesetBased [%v]", loggerId, volumeIdMembers.IsFilesetBased)
 	}
 
-	conn, err := cs.getConnFromClusterID(ctx, volumeIdMembers.ClusterId)
+	conn, _, err := cs.getConnFromClusterID(ctx, volumeIdMembers.ClusterId, volumeIdMembers.FsUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -3305,7 +3373,7 @@ func (cs *ScaleControllerServer) ControllerPublishVolume(ctx context.Context, re
 	var fsNameRemote string
 	if volumeIDMembers.StorageClassType == STORAGECLASS_CACHE {
 		// To check all of the gateway nodes are having filesystem mounted
-		conn, err = cs.getConnFromClusterID(ctx, volumeIDMembers.ClusterId)
+		conn, _, err = cs.getConnFromClusterID(ctx, volumeIDMembers.ClusterId, volumeIDMembers.FsUUID)
 		if err != nil {
 			return nil, err
 		}
@@ -3492,10 +3560,11 @@ func (cs *ScaleControllerServer) CreateSnapshot(newctx context.Context, req *csi
 		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("CreateSnapshot - volume [%s] - Volume snapshot can only be created when source volume is dependent fileset for new storageClass", volID))
 	}
 
-	conn, err := cs.getConnFromClusterID(ctx, volumeIDMembers.ClusterId)
+	conn, primaryClusterID, err := cs.getConnFromClusterID(ctx, volumeIDMembers.ClusterId, volumeIDMembers.FsUUID)
 	if err != nil {
 		return nil, err
 	}
+
 	assembledScaleversion, err := cs.assembledScaleVersion(ctx, conn)
 	if err != nil {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("the  IBM Storage Scale version check for permissions failed with error %s", err))
@@ -3540,6 +3609,28 @@ func (cs *ScaleControllerServer) CreateSnapshot(newctx context.Context, req *csi
 	if volumeIDMembers.StorageClassType != STORAGECLASS_ADVANCED {
 		if filesetResp.Config.ParentId > 0 {
 			return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("CreateSnapshot - volume [%s] - Volume snapshot can only be created when source volume is independent fileset", volID))
+		}
+	}
+	if primaryClusterID != "" {
+		klog.V(4).Infof("[%s] setting volumeIDMembers ClusterId for Metro DR to primaryClusterID [%v]", loggerId, primaryClusterID)
+		volumeIDMembers.ClusterId = primaryClusterID
+
+		if volumeIDMembers.StorageClassType == STORAGECLASS_ADVANCED && len(volumeIDMembers.ConsistencyGroup) > cgPrefixLen {
+			fsDetails, err := conn.GetFilesystemDetails(ctx, filesystemName)
+			if err != nil {
+				return nil, status.Error(codes.Internal, fmt.Sprintf("CreateSnapshot - unable to get fs info for FS [%v] in the cluster", volumeIDMembers.FsName))
+			}
+			// Check for consistencyGroup
+			if fsDetails.Type != filesystemTypeRemote {
+				newcg, err := cs.validateCG(ctx, conn, filesystemName, volumeIDMembers.ConsistencyGroup)
+				if err != nil {
+					klog.Errorf("ValidateCG failed for MDR . Error: %v", err)
+					klog.Errorf("[%s] failed to validate CG for MDR fileset [%v] in filesystem [%v]. Error: %v", loggerId, volumeIDMembers.FsetName, volumeIDMembers.FsName, err)
+					return nil, err
+				}
+				klog.V(4).Infof("[%s] setting volumeIDMembers ConsistencyGroup for Metro DR to the cg [%v]", loggerId, newcg)
+				volumeIDMembers.ConsistencyGroup = newcg
+			}
 		}
 	}
 
@@ -3920,7 +4011,7 @@ func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi
 		return nil, err
 	}
 
-	conn, err := cs.getConnFromClusterID(ctx, snapIdMembers.ClusterId)
+	conn, _, err := cs.getConnFromClusterID(ctx, snapIdMembers.ClusterId, snapIdMembers.FsUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -4171,7 +4262,7 @@ func (cs *ScaleControllerServer) ControllerExpandVolume(ctx context.Context, req
 		}, nil
 	}
 
-	conn, err := cs.getConnFromClusterID(ctx, volumeIDMembers.ClusterId)
+	conn, _, err := cs.getConnFromClusterID(ctx, volumeIDMembers.ClusterId, volumeIDMembers.FsUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -4267,7 +4358,7 @@ func (cs *ScaleControllerServer) getRemoteClusterID(ctx context.Context, cluster
 		} else { // cluster details are expired
 			klog.V(4).Infof("[%s] cluster details found from cache map for cluster %s are expired.", loggerId, clusterName)
 			cID := clusterDetails.(ClusterDetails).id
-			conn, err := cs.getConnFromClusterID(ctx, cID)
+			conn, _, err := cs.getConnFromClusterID(ctx, cID, "")
 			if err != nil {
 				return "", err
 			}
@@ -4352,7 +4443,7 @@ func checkExpiry(clusterDetails interface{}) bool {
 func (cs *ScaleControllerServer) updateClusterMap(ctx context.Context, cID string) (string, bool, error) {
 	loggerId := utils.GetLoggerId(ctx)
 	klog.V(4).Infof("[%s] Creating new connector for the cluster %s", loggerId, cID)
-	clusterConnector, err := cs.getConnFromClusterID(ctx, cID)
+	clusterConnector, _, err := cs.getConnFromClusterID(ctx, cID, "")
 	// clusterConnector, err := connectors.NewSpectrumRestV2(cluster)
 	if err != nil {
 		klog.V(4).Infof("[%s] unable to create new connector for the cluster %s", loggerId, cID)
