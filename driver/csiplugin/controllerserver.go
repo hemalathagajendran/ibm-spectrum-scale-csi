@@ -1936,6 +1936,21 @@ func (cs *ScaleControllerServer) copyVolumeContentWithSnapshotClone(ctx context.
 		targetPath = fmt.Sprintf("%s/%s/%s-data", fsDetails.Mount.MountPoint, newvolume.VolName, newvolume.VolName)
 	}
 
+	if fsDetails.Type == filesystemTypeRemote {
+		remotefsDetails, err := conn.GetFilesystemDetails(ctx, newvolume.VolBackendFs)
+		if err != nil {
+			if strings.Contains(err.Error(), "Invalid value in filesystemName") {
+				klog.Errorf("[%s] filesystem %s in not known to cluster %s. Error: %v", loggerId, newvolume.VolBackendFs, newvolume.ClusterId, err)
+				return status.Error(codes.Internal, fmt.Sprintf("Filesystem %s in not known to cluster %s. Error: %v", newvolume.VolBackendFs, newvolume.ClusterId, err))
+			}
+			klog.Errorf("[%s] unable to check type of filesystem [%s]. Error: %v", loggerId, newvolume.VolBackendFs, err)
+			return status.Error(codes.Internal, fmt.Sprintf("unable to check type of filesystem [%s]. Error: %v", newvolume.VolBackendFs, err))
+		}
+		remoteMntPt := remotefsDetails.Mount.MountPoint
+		targetPath = strings.Replace(targetPath, fsDetails.Mount.MountPoint, remoteMntPt, 1)
+	}
+
+
 	klog.Infof("[%s] sourcePath:[%s], targetPath:[%s]", loggerId, sourcePath, targetPath)
 	err = conn.CreateSnapshotCloneCopy(ctx, sourcevolume.FsName, sourcevolume.FsetName, sourcevolume.SnapName, sourcePath, newvolume.VolBackendFs, newvolume.VolName, targetPath)
 	if err != nil {
@@ -2247,6 +2262,12 @@ func (cs *ScaleControllerServer) validateSnapId(ctx context.Context, scaleVol *s
 		return status.Error(codes.Internal, fmt.Sprintf("snapshot [%v] does not exist for fileset [%v]", sourcesnapshot.SnapName, filesetToCheck))
 	}
 
+	if sourcesnapshot.VolType == FILE_VMDISKOPTIMIZED_VOLUME {
+		if scaleVol.FilesetType == independentFileset && !scaleVol.VmDiskOptimized {
+			return status.Error(codes.Internal, "creating independent fileset based volume from vm-disk-optimized snapshot is not supported")
+		}
+	}
+
 	if scaleVol.VmDiskOptimized {
 		if sourcesnapshot.FsName != newvolume.VolBackendFs {
 			return status.Error(codes.Internal, fmt.Sprintf("source snapshot fs [%s] doesn't match with clone volume [%s]", sourcesnapshot.FsName, newvolume.VolBackendFs))
@@ -2472,9 +2493,15 @@ func (cs *ScaleControllerServer) validateCloneRequest(ctx context.Context, scale
 		}
 	}
 
+	if sourcevolume.VolType == FILE_VMDISKOPTIMIZED_VOLUME {
+		if scaleVol.FilesetType == independentFileset && !scaleVol.VmDiskOptimized {
+			return status.Error(codes.Internal, "creating independent fileset based volume from vm-disk-optimized volume is not supported")
+		}
+	}
+
 	if scaleVol.VmDiskOptimized {
-		if (sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || sourcevolume.VolType != FILE_VMDISKOPTIMIZED_VOLUME) && newvolume.FilesetType != independentFileset {
-			return status.Error(codes.Internal, fmt.Sprintf("validation of volume cloning failed as the source [%s] and destination volume [%s] type should be independent [%s]", sourcevolume.VolType, newvolume.VolumeType, independentFileset))
+		if (sourcevolume.VolType != FILE_INDEPENDENTFILESET_VOLUME || sourcevolume.VolType != FILE_VMDISKOPTIMIZED_VOLUME) && !newvolume.VmDiskOptimized {
+			return status.Error(codes.Internal, fmt.Sprintf("validation of volume cloning failed either the source(independent fileset) [%s] and destination volume(vmdisk) [%s] type doesn't match", sourcevolume.VolType, newvolume.VolumeType ))
 		}
 	}
 
