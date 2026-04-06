@@ -638,11 +638,11 @@ type CreateFilesetRequest struct {
 	IamMode                      string `json:"iamMode,omitempty"`
 	AfmTarget                    string `json:"afmTarget,omitempty"`
 	AfmAsyncDelay                string `json:"afmAsyncDelay,omitempty"`
-	AfmDirLookupRefreshInterval  string `json:"afmDirLookupRefreshInterval,omitempty"`
-	AfmDirOpenRefreshInterval    string `json:"afmDirOpenRefreshInterval,omitempty"`
+	AfmDirLookupRefreshInterval  int    `json:"afmDirLookupRefreshInterval,omitempty"`
+	AfmDirOpenRefreshInterval    int    `json:"afmDirOpenRefreshInterval,omitempty"`
 	AfmEnableAutoEviction        string `json:"afmEnableAutoEviction,omitempty"`
 	AfmExpirationTimeout         string `json:"afmExpirationTimeout,omitempty"`
-	AfmFileLookupRefreshInterval string `json:"afmFileLookupRefreshInterval,omitempty"`
+	AfmFileLookupRefreshInterval int    `json:"afmFileLookupRefreshInterval,omitempty"`
 	AfmMode                      string `json:"afmMode,omitempty"`
 	AfmNumFlushThreads           int    `json:"afmNumFlushThreads,omitempty"`
 	AfmParallelReadChunkSize     int    `json:"afmParallelReadChunkSize,omitempty"`

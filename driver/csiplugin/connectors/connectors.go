@@ -156,9 +156,9 @@ const (
 	AfmNumReadThreadsDefault            = 1
 	AfmObjectFastReaddirDefault         = "no"
 	AfmReadSparseThresholdDefault       = "128"
-	AfmDirLookupRefreshIntervalDefault  = "60"
-	AfmDirOpenRefreshIntervalDefault    = "60"
-	AfmFileLookupRefreshIntervalDefault = "30"
+	AfmDirLookupRefreshIntervalDefault  = 60
+	AfmDirOpenRefreshIntervalDefault    = 60
+	AfmFileLookupRefreshIntervalDefault = 30
 )
 
 func GetSpectrumScaleConnector(ctx context.Context, config settings.Clusters) (SpectrumScaleConnector, error) {
