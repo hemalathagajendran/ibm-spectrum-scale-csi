@@ -696,14 +696,38 @@ func updateFilesetWithS3TuningParams(ctx context.Context, filesetreq *CreateFile
 
 	afmNumFlushThreadsValue, afmNumFlushThreadsFound := opts[AfmNumFlushThreads]
 	if afmNumFlushThreadsFound {
-		filesetreq.AfmNumFlushThreads = afmNumFlushThreadsValue.(int)
+		if strValue, ok := afmNumFlushThreadsValue.(string); ok {
+			if intValue, err := strconv.Atoi(strValue); err == nil {
+				filesetreq.AfmNumFlushThreads = intValue
+			} else {
+				klog.Warningf("[%s] failed to convert afmNumFlushThreads to int: %v, using default", utils.GetLoggerId(ctx), err)
+				filesetreq.AfmNumFlushThreads = AfmNumFlushThreadsDefault
+			}
+		} else if intValue, ok := afmNumFlushThreadsValue.(int); ok {
+			filesetreq.AfmNumFlushThreads = intValue
+		} else {
+			klog.Warningf("[%s] afmNumFlushThreads has unexpected type, using default", utils.GetLoggerId(ctx))
+			filesetreq.AfmNumFlushThreads = AfmNumFlushThreadsDefault
+		}
 	} else {
 		filesetreq.AfmNumFlushThreads = AfmNumFlushThreadsDefault
 	}
 
 	afmPrefetchThresholdValue, afmPrefetchThresholdFound := opts[AfmPrefetchThreshold]
 	if afmPrefetchThresholdFound {
-		filesetreq.AfmPrefetchThreshold = afmPrefetchThresholdValue.(int)
+		if strValue, ok := afmPrefetchThresholdValue.(string); ok {
+			if intValue, err := strconv.Atoi(strValue); err == nil {
+				filesetreq.AfmPrefetchThreshold = intValue
+			} else {
+				klog.Warningf("[%s] failed to convert afmPrefetchThreshold to int: %v, using default", utils.GetLoggerId(ctx), err)
+				filesetreq.AfmPrefetchThreshold = AfmPrefetchThresholdDefault
+			}
+		} else if intValue, ok := afmPrefetchThresholdValue.(int); ok {
+			filesetreq.AfmPrefetchThreshold = intValue
+		} else {
+			klog.Warningf("[%s] afmPrefetchThreshold has unexpected type, using default", utils.GetLoggerId(ctx))
+			filesetreq.AfmPrefetchThreshold = AfmPrefetchThresholdDefault
+		}
 	} else {
 		filesetreq.AfmPrefetchThreshold = AfmPrefetchThresholdDefault
 	}
