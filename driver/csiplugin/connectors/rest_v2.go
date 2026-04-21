@@ -659,21 +659,21 @@ func updateFilesetWithNfsTuningParams(ctx context.Context, filesetreq *CreateFil
 
 	afmDirLookupRefreshIntervalValue, afmDirLookupRefreshIntervalFound := opts[AfmDirLookupRefreshInterval]
 	if afmDirLookupRefreshIntervalFound {
-		filesetreq.AfmDirLookupRefreshInterval = afmDirLookupRefreshIntervalValue.(int)
+		filesetreq.AfmDirLookupRefreshInterval = afmDirLookupRefreshIntervalValue.(string)
 	} else {
 		filesetreq.AfmDirLookupRefreshInterval = AfmDirLookupRefreshIntervalDefault
 	}
 
 	afmDirOpenRefreshIntervalValue, afmDirOpenRefreshIntervalFound := opts[AfmDirOpenRefreshInterval]
 	if afmDirOpenRefreshIntervalFound {
-		filesetreq.AfmDirOpenRefreshInterval = afmDirOpenRefreshIntervalValue.(int)
+		filesetreq.AfmDirOpenRefreshInterval = afmDirOpenRefreshIntervalValue.(string)
 	} else {
 		filesetreq.AfmDirOpenRefreshInterval = AfmDirOpenRefreshIntervalDefault
 	}
 
 	afmFileLookupRefreshIntervalValue, afmFileLookupRefreshIntervalFound := opts[AfmFileLookupRefreshInterval]
 	if afmFileLookupRefreshIntervalFound {
-		filesetreq.AfmFileLookupRefreshInterval = afmFileLookupRefreshIntervalValue.(int)
+		filesetreq.AfmFileLookupRefreshInterval = afmFileLookupRefreshIntervalValue.(string)
 	} else {
 		filesetreq.AfmFileLookupRefreshInterval = AfmFileLookupRefreshIntervalDefault
 	}

@@ -873,7 +873,7 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 			if afmDirLookupRefreshIntervalValue < 0 || afmDirLookupRefreshIntervalValue > refreshInterval {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmDirLookupRefreshInterval))
 			} else {
-				cacheVolId.NfsTuningParams[vacKey] = afmDirLookupRefreshIntervalValue
+				cacheVolId.NfsTuningParams[vacKey] = vacValue
 			}
 
 		case connectors.AfmDirOpenRefreshInterval:
@@ -881,7 +881,7 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 			if afmDirOpenRefreshIntervalValue < 0 || afmDirOpenRefreshIntervalValue > refreshInterval {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmDirOpenRefreshInterval))
 			} else {
-				cacheVolId.NfsTuningParams[vacKey] = afmDirOpenRefreshIntervalValue
+				cacheVolId.NfsTuningParams[vacKey] = vacValue
 			}
 
 		case connectors.AfmFileLookupRefreshInterval:
@@ -889,7 +889,7 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 			if afmFileLookupRefreshIntervalValue < 0 || afmFileLookupRefreshIntervalValue > refreshInterval {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmFileLookupRefreshInterval))
 			} else {
-				cacheVolId.NfsTuningParams[vacKey] = afmFileLookupRefreshIntervalValue
+				cacheVolId.NfsTuningParams[vacKey] = vacValue
 			}
 
 		default:
