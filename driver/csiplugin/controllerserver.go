@@ -791,7 +791,7 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 			if afmNumFlushThreadsValue < 1 || afmNumFlushThreadsValue > 1024 {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmNumFlushThreads))
 			} else {
-				cacheVolId.S3TuningParams[vacKey] = vacValue
+				cacheVolId.S3TuningParams[vacKey] = afmNumFlushThreadsValue
 			}
 
 		case connectors.AfmPrefetchThreshold:
@@ -799,7 +799,7 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 			if afmPrefetchThresholdValue < 0 || afmPrefetchThresholdValue > 100 {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmPrefetchThreshold))
 			} else {
-				cacheVolId.S3TuningParams[vacKey] = vacValue
+				cacheVolId.S3TuningParams[vacKey] = afmPrefetchThresholdValue
 			}
 
 		case connectors.AfmObjectFastReaddir:
