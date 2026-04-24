@@ -677,7 +677,7 @@ type CreateS3CacheFilesetRequest struct {
 
 type SetBucketKeysRequest struct {
 	BucketName string `json:"bucket"`
-	AccessKey  string `json:"accessKey"`
+	AccessKey  string `json:"accessKey"` //#nosec G117 -- This is an internal struct
 	SecretKey  string `json:"secretKey"`
 	Server     string `json:"server,omitempty"`
 }

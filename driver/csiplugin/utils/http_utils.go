@@ -90,6 +90,7 @@ func HttpExecuteUserAuth(ctx context.Context, httpClient *http.Client, requestTy
 	}
 	klog.V(6).Infof("[%s] http_utils HttpExecuteUserAuth request: %+v", GetLoggerId(ctx), &requestToLog)
 
+	//#nosec G704 -- This is an internal function and the URL is not user controlled, so it is not vulnerable to SSRF
 	return httpClient.Do(request)
 }
 

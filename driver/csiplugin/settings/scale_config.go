@@ -159,7 +159,7 @@ func HandleSecretsAndCerts(ctx context.Context, cmap *ScaleSettingsConfigMap) er
 				}
 
 				// Read file contents
-				data, err := os.ReadFile(path)
+				data, err := os.ReadFile(path) // #nosec G304 Valid Path is generated internally
 				if err != nil {
 					return fmt.Errorf("failed to read the IBM Storage Scale CA certificate directory:%s - error: %v", path, err)
 				}
