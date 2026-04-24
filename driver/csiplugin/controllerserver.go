@@ -284,6 +284,7 @@ func (cs *ScaleControllerServer) setQuota(ctx context.Context, scVol *scaleVolum
 	if filesetQuotaBytes != scVol.VolSize {
 		var hardLimit, softLimit string
 		// Calculate hardLimit/softLimit as multiple of fsBlockSize, always <= scVol.VolSize
+		// #nosec G115 -- false positive
 		alignedVolSize := (scVol.VolSize / uint64(fsBlockSize)) * uint64(fsBlockSize)
 		hardLimit = strconv.FormatUint(alignedVolSize, 10)
 		if scVol.VolumeType == cacheVolume {
@@ -1411,6 +1412,7 @@ func (cs *ScaleControllerServer) createStaticBasedVol(ctx context.Context, scVol
 			klog.Errorf("[%s] createStaticBasedVol: unable to convert quota for fileset [%v] in filesystem [%v]. Error [%v]", loggerId, filesetName, scVol.VolBackendFs, err)
 			return "", status.Error(codes.Internal, fmt.Sprintf("unable to convert quota for fileset [%v] in filesystem [%v] or Check whether quota is set properly for the fileset. Error [%v]", filesetName, scVol.VolBackendFs, err))
 		}
+		// #nosec G115 -- false positive
 		alignedVolSize := (capacity / uint64(fsDetails.Block.BlockSize)) * uint64(fsDetails.Block.BlockSize)
 		klog.V(4).Infof("[%s] createStaticBasedVol: filesetQuotaInBytesPresent:[%v] volCapacityRequired:[%v]", loggerId, filesetQuotaBytes, alignedVolSize)
 		if filesetQuotaBytes < alignedVolSize {
@@ -4336,6 +4338,7 @@ func (cs *ScaleControllerServer) ControllerExpandVolume(ctx context.Context, req
 	if filesetQuotaBytes < capacity {
 		var hardLimit, softLimit string
 		// Calculate hardLimit as multiple of fsBlockSize, always <= capacity
+		// #nosec G115 -- false positive
 		alignedCapacity := (capacity / uint64(fsDetails.Block.BlockSize)) * uint64(fsDetails.Block.BlockSize)
 		hardLimit = strconv.FormatUint(alignedCapacity, 10)
 		if volumeIDMembers.StorageClassType == STORAGECLASS_CACHE {
