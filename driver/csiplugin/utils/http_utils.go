@@ -90,8 +90,8 @@ func HttpExecuteUserAuth(ctx context.Context, httpClient *http.Client, requestTy
 	}
 	klog.V(6).Infof("[%s] http_utils HttpExecuteUserAuth request: %+v", GetLoggerId(ctx), &requestToLog)
 
-	//# nosec G704 - This is a user initiated request to the cluster and the URL is generated internally, so it is not vulnerable to SSRF attacks.
-	return httpClient.Do(request)
+
+	return httpClient.Do(request) // #nosec G704 - This is a user initiated request to the cluster and the URL is generated internally, so it is not vulnerable to SSRF attacks.
 }
 
 func WriteResponse(w http.ResponseWriter, code int, object interface{}) {
