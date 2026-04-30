@@ -85,6 +85,7 @@ func (s *nonBlockingGRPCServer) serve(endpoint string, ids csi.IdentityServer, c
 	switch u.Scheme {
 	case "unix":
 		addr = u.Path
+		// #nosec G703
 		if err := os.Remove(addr); err != nil && !os.IsNotExist(err) {
 			klog.Fatalf("Failed to remove %s, error: %s", addr, err.Error())
 		}
@@ -100,6 +101,7 @@ func (s *nonBlockingGRPCServer) serve(endpoint string, ids csi.IdentityServer, c
 		klog.Fatalf("Failed to listen: %v", err)
 	}
 	// Updated csi.sock file permission to read and write only
+	// #nosec G703
 	if err := os.Chmod(addr, 0600); err != nil {
 		klog.Fatalf("Failed to modify csi.sock permission : %v", err)
 	}
