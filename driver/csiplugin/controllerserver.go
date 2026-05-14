@@ -1194,7 +1194,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 		}, nil
 	}
 
-	klog.Infof("[%s] volume:[%v] -  IBM Storage Scale volume create params : %v , Connector: %v\n", loggerId, scaleVol.VolName, scaleVol, scaleVol.Connector)
+	klog.Infof("[%s] volume:[%v] -  IBM Storage Scale volume create params : %v", loggerId, scaleVol.VolName, scaleVol)
 
 	if scaleVol.VmDiskOptimized && scaleVol.Compression != "" {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume: compression is not supported for vmDiskOptimized volume: %s", scaleVol.VolName))
@@ -2834,8 +2834,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 
 	if err := cs.Driver.ValidateControllerServiceRequest(ctx, csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME); err != nil {
 		klog.Errorf("[%s] Invalid delete volume req: %v", loggerId, reqToLog)
-		return nil, status.Error(codes.InvalidArgument,
-			fmt.Sprintf("Invalid delete volume req (%v): %v", req, err))
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("Invalid delete volume req %v", err))
 	}
 	// For now the image get unconditionally deleted, but here retention policy can be checked
 	volumeID := req.GetVolumeId()
