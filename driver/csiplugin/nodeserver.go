@@ -28,7 +28,7 @@ import (
 	"github.com/IBM/ibm-spectrum-scale-csi/driver/csiplugin/utils"
 	"golang.org/x/net/context"
 	"k8s.io/mount-utils"
-
+    "google.golang.org/protobuf/proto"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -143,7 +143,9 @@ func getGpfsPaths(ctx context.Context) []string {
 
 func (ns *ScaleNodeServer) NodePublishVolume(ctx context.Context, req *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
 	loggerId := utils.GetLoggerId(ctx)
-	klog.Infof("[%s] NodePublishVolume - request: %#v", loggerId, req)
+	reqToLog := proto.Clone(req).(*csi.NodePublishVolumeRequest)
+	reqToLog.Secrets = nil
+	klog.Infof("[%s] NodePublishVolume - request: %#v", loggerId, reqToLog)
 
 	// Validate Arguments
 	targetPath := req.GetTargetPath()
