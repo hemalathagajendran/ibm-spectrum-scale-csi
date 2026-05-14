@@ -919,7 +919,6 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	loggerId := utils.GetLoggerId(newctx)
 	ctx := utils.SetModuleName(newctx, createVolume)
 
-	// Mask the secrets from request before logging
 	reqToLog := proto.Clone(req).(*csi.CreateVolumeRequest)
 	reqToLog.Secrets = nil
 	klog.Infof("[%s] CreateVolume req: %+v", loggerId, reqToLog)
@@ -2723,7 +2722,6 @@ func (cs *ScaleControllerServer) ControllerModifyVolume(ctx context.Context, req
 	loggerId := utils.GetLoggerId(ctx)
 	afmTuningParams := make(map[string]interface{})
 
-	// Mask the secrets from request before logging
 	reqToLog := proto.Clone(req).(*csi.ControllerModifyVolumeRequest)
 	reqToLog.Secrets = nil
 	klog.Infof("[%s] ControllerModifyVolume - request: %#v", loggerId, reqToLog)
@@ -2830,7 +2828,6 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 	loggerId := utils.GetLoggerId(newctx)
 	ctx := utils.SetModuleName(newctx, deleteVolume)
 
-	// Mask the secrets from request before logging
 	reqToLog := proto.Clone(req).(*csi.DeleteVolumeRequest)
 	reqToLog.Secrets = nil
 	klog.Infof("[%s] DeleteVolume req: %v", loggerId, reqToLog)
@@ -3257,7 +3254,7 @@ func (cs *ScaleControllerServer) ControllerGetCapabilities(ctx context.Context, 
 func (cs *ScaleControllerServer) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
 	loggerId := utils.GetLoggerId(ctx)
 	volumeID := req.GetVolumeId()
-	// Mask the secrets from request before logging
+
 	reqToLog := proto.Clone(req).(*csi.ValidateVolumeCapabilitiesRequest)
 	reqToLog.Secrets = nil
 	klog.V(4).Infof("[%s] ValidateVolumeCapabilities called with req: %#v", loggerId, reqToLog)
@@ -3284,7 +3281,7 @@ func (cs *ScaleControllerServer) ValidateVolumeCapabilities(ctx context.Context,
 
 func (cs *ScaleControllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	loggerId := utils.GetLoggerId(ctx)
-	// Mask the secrets from request before logging
+
 	reqToLog := proto.Clone(req).(*csi.ControllerUnpublishVolumeRequest)
 	reqToLog.Secrets = nil
 	klog.Infof("[%s] ControllerUnpublishVolume - request: %#v", loggerId, reqToLog)
@@ -3305,7 +3302,7 @@ func (cs *ScaleControllerServer) ControllerUnpublishVolume(ctx context.Context, 
 
 func (cs *ScaleControllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) { //nolint:gocyclo,funlen
 	loggerId := utils.GetLoggerId(ctx)
-	// Mask the secrets from request before logging
+
 	reqToLog := proto.Clone(req).(*csi.ControllerPublishVolumeRequest)
 	reqToLog.Secrets = nil
 	klog.Infof("[%s] ControllerPublishVolume - request: %#v", loggerId, reqToLog)
@@ -3567,7 +3564,7 @@ func (cs *ScaleControllerServer) MakeSnapMetadataDir(ctx context.Context, conn c
 func (cs *ScaleControllerServer) CreateSnapshot(newctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) { //nolint:gocyclo,funlen
 	loggerId := utils.GetLoggerId(newctx)
 	ctx := utils.SetModuleName(newctx, createSnapshot)
-	// Mask the secrets from request before logging
+
 	reqToLog := proto.Clone(req).(*csi.CreateSnapshotRequest)
 	reqToLog.Secrets = nil
 	klog.Infof("[%s] CreateSnapshot - create snapshot req: %v", loggerId, reqToLog)
@@ -4032,7 +4029,7 @@ func parseStatDirInfo(statInfo string) (int, error) {
 func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 	loggerId := utils.GetLoggerId(newctx)
 	ctx := utils.SetModuleName(newctx, deleteSnapshot)
-	// Mask the secrets from request before logging
+
 	reqToLog := proto.Clone(req).(*csi.DeleteSnapshotRequest)
 	reqToLog.Secrets = nil
 	klog.Infof("[%s] DeleteSnapshot - delete snapshot req: %v", loggerId, reqToLog)
@@ -4266,7 +4263,6 @@ func (cs *ScaleControllerServer) ListVolumes(ctx context.Context, req *csi.ListV
 func (cs *ScaleControllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	loggerId := utils.GetLoggerId(ctx)
 
-	// Mask the secrets from request before logging
 	reqToLog := proto.Clone(req).(*csi.ControllerExpandVolumeRequest)
 	reqToLog.Secrets = nil
 	klog.Infof("[%s] ControllerExpandVolume - Volume expand req: %v", loggerId, reqToLog)
