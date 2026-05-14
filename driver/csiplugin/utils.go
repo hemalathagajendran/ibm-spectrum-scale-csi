@@ -68,8 +68,8 @@ func logGRPC(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, h
 	logLevel := strings.ToUpper(os.Getenv(utils.LogLevel))
 	if logLevel == utils.DEBUG.String() || logLevel == utils.TRACE.String() {
 		reqString := fmt.Sprintf("%+v", req)
-		regExp := regexp.MustCompile("secrets:.*?>")
-		reqToLog := regExp.ReplaceAllString(reqString, "")
+		regExp := regexp.MustCompile(`secrets:\{key:"[^"]*"\s+value:"[^"]*"\}`)
+		reqToLog := regExp.ReplaceAllString(reqString, `secrets:{key:"***" value:"***"}`)
 		klog.V(4).Infof("[%s] GRPC request: %+v", loggerId, reqToLog)
 	}
 
