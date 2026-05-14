@@ -1194,7 +1194,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 		}, nil
 	}
 
-	klog.Infof("[%s] volume:[%v] -  IBM Storage Scale volume create params : %v , Connector: %v\n", loggerId, scaleVol.VolName, scaleVol, scaleVol.Connector)
+	klog.Infof("[%s] volume:[%v] -  IBM Storage Scale volume create params : %v", loggerId, scaleVol.VolName, scaleVol)
 
 	if scaleVol.VmDiskOptimized && scaleVol.Compression != "" {
 		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume: compression is not supported for vmDiskOptimized volume: %s", scaleVol.VolName))
