@@ -886,7 +886,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 
 	reqToLog := proto.Clone(req).(*csi.CreateVolumeRequest)
 	reqToLog.Secrets = nil
-	klog.Infof("[%s] CreateVolume req: %v", loggerId, &reqToLog)
+	klog.Infof("[%s] CreateVolume req: %v", loggerId, reqToLog)
 
 	if err := cs.Driver.ValidateControllerServiceRequest(ctx, csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME); err != nil {
 		klog.Errorf("[%s] invalid create volume req: %v", loggerId, reqToLog)
@@ -2629,7 +2629,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 
 	reqToLog := proto.Clone(req).(*csi.DeleteVolumeRequest)
 	reqToLog.Secrets = nil
-	klog.Infof("[%s] DeleteVolume req: %v", loggerId, &reqToLog)
+	klog.Infof("[%s] DeleteVolume req: %v", loggerId, reqToLog)
 
 	ifPrimaryDisable := false
 	if strings.ToUpper(os.Getenv(settings.PrimaryFilesystemKey)) == settings.PrimaryFilesystemValue {
