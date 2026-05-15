@@ -35,6 +35,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/proto"
 	"k8s.io/klog/v2"
 )
 
@@ -883,12 +884,7 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	loggerId := utils.GetLoggerId(newctx)
 	ctx := utils.SetModuleName(newctx, createVolume)
 
-<<<<<<< HEAD
-	// Mask the secrets from request before logging
-	reqToLog := *req
-=======
 	reqToLog := proto.Clone(req).(*csi.CreateVolumeRequest)
->>>>>>> baac654f (Log Improvement (#1476))
 	reqToLog.Secrets = nil
 	klog.Infof("[%s] CreateVolume req: %v", loggerId, &reqToLog)
 
@@ -1122,10 +1118,6 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	}
 
 	klog.Infof("[%s] volume:[%v] -  IBM Storage Scale volume create params : %v\n", loggerId, scaleVol.VolName, scaleVol)
-
-	if scaleVol.VmDiskOptimized && scaleVol.Compression != "" {
-		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume: compression is not supported for vmDiskOptimized volume: %s", scaleVol.VolName))
-	}
 
 	if scaleVol.IsFilesetBased && scaleVol.Compression != "" {
 		klog.Infof("[%s] createvolume: compression is enabled: changing volume name", loggerId)
@@ -2549,13 +2541,9 @@ func (cs *ScaleControllerServer) DeleteCGFileset(ctx context.Context, Filesystem
 func (cs *ScaleControllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
 	loggerId := utils.GetLoggerId(ctx)
 
-<<<<<<< HEAD
-	klog.Infof("[%s] ControllerModifyVolume - Volume modify req: %v", loggerId, req)
-=======
 	reqToLog := proto.Clone(req).(*csi.ControllerModifyVolumeRequest)
 	reqToLog.Secrets = nil
 	klog.Infof("[%s] ControllerModifyVolume - request: %#v", loggerId, reqToLog)
->>>>>>> baac654f (Log Improvement (#1476))
 	klog.Infof("[%s] ControllerModifyVolume - Number of param: %v", loggerId, len(req.MutableParameters))
 
 	if err := cs.Driver.ValidateControllerServiceRequest(ctx, csi.ControllerServiceCapability_RPC_MODIFY_VOLUME); err != nil {
@@ -2639,12 +2627,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 	loggerId := utils.GetLoggerId(newctx)
 	ctx := utils.SetModuleName(newctx, deleteVolume)
 
-<<<<<<< HEAD
-	// Mask the secrets from request before logging
-	reqToLog := *req
-=======
 	reqToLog := proto.Clone(req).(*csi.DeleteVolumeRequest)
->>>>>>> baac654f (Log Improvement (#1476))
 	reqToLog.Secrets = nil
 	klog.Infof("[%s] DeleteVolume req: %v", loggerId, &reqToLog)
 
