@@ -35,6 +35,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"google.golang.org/protobuf/proto"
 	"k8s.io/klog/v2"
 )
 
@@ -883,13 +884,12 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	loggerId := utils.GetLoggerId(newctx)
 	ctx := utils.SetModuleName(newctx, createVolume)
 
-	// Mask the secrets from request before logging
-	reqToLog := *req
+	reqToLog := proto.Clone(req).(*csi.CreateVolumeRequest)
 	reqToLog.Secrets = nil
-	klog.Infof("[%s] CreateVolume req: %v", loggerId, &reqToLog)
+	klog.Infof("[%s] CreateVolume req: %v", loggerId, reqToLog)
 
 	if err := cs.Driver.ValidateControllerServiceRequest(ctx, csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME); err != nil {
-		klog.Errorf("[%s] invalid create volume req: %v", loggerId, req)
+		klog.Errorf("[%s] invalid create volume req: %v", loggerId, reqToLog)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateVolume ValidateControllerServiceRequest failed: %v", err))
 	}
 
@@ -2541,11 +2541,13 @@ func (cs *ScaleControllerServer) DeleteCGFileset(ctx context.Context, Filesystem
 func (cs *ScaleControllerServer) ControllerModifyVolume(ctx context.Context, req *csi.ControllerModifyVolumeRequest) (*csi.ControllerModifyVolumeResponse, error) {
 	loggerId := utils.GetLoggerId(ctx)
 
-	klog.Infof("[%s] ControllerModifyVolume - Volume modify req: %v", loggerId, req)
+	reqToLog := proto.Clone(req).(*csi.ControllerModifyVolumeRequest)
+	reqToLog.Secrets = nil
+	klog.Infof("[%s] ControllerModifyVolume - request: %#v", loggerId, reqToLog)
 	klog.Infof("[%s] ControllerModifyVolume - Number of param: %v", loggerId, len(req.MutableParameters))
 
 	if err := cs.Driver.ValidateControllerServiceRequest(ctx, csi.ControllerServiceCapability_RPC_MODIFY_VOLUME); err != nil {
-		klog.Errorf("[%s] invalid modify volume req: %v", loggerId, req)
+		klog.Errorf("[%s] invalid modify volume req: %v", loggerId, reqToLog)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ModifyVolume ValidateControllerServiceRequest failed: %v", err))
 	}
 
@@ -2625,10 +2627,9 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 	loggerId := utils.GetLoggerId(newctx)
 	ctx := utils.SetModuleName(newctx, deleteVolume)
 
-	// Mask the secrets from request before logging
-	reqToLog := *req
+	reqToLog := proto.Clone(req).(*csi.DeleteVolumeRequest)
 	reqToLog.Secrets = nil
-	klog.Infof("[%s] DeleteVolume req: %v", loggerId, &reqToLog)
+	klog.Infof("[%s] DeleteVolume req: %v", loggerId, reqToLog)
 
 	ifPrimaryDisable := false
 	if strings.ToUpper(os.Getenv(settings.PrimaryFilesystemKey)) == settings.PrimaryFilesystemValue {
@@ -2637,9 +2638,8 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 	klog.Infof("[%s] ifPrimaryDisable : %t", loggerId, ifPrimaryDisable)
 
 	if err := cs.Driver.ValidateControllerServiceRequest(ctx, csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME); err != nil {
-		klog.Errorf("[%s] Invalid delete volume req: %v", loggerId, req)
-		return nil, status.Error(codes.InvalidArgument,
-			fmt.Sprintf("Invalid delete volume req (%v): %v", req, err))
+		klog.Errorf("[%s] Invalid delete volume req: %v", loggerId, reqToLog)
+		return nil, status.Error(codes.InvalidArgument, fmt.Sprintf("Invalid delete volume req %v", err))
 	}
 	// For now the image get unconditionally deleted, but here retention policy can be checked
 	volumeID := req.GetVolumeId()
@@ -2978,7 +2978,11 @@ func (cs *ScaleControllerServer) ControllerGetCapabilities(ctx context.Context, 
 func (cs *ScaleControllerServer) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
 	loggerId := utils.GetLoggerId(ctx)
 	volumeID := req.GetVolumeId()
-	klog.V(4).Infof("[%s] ValidateVolumeCapabilities called with req: %#v", loggerId, req)
+
+	reqToLog := proto.Clone(req).(*csi.ValidateVolumeCapabilitiesRequest)
+	reqToLog.Secrets = nil
+	klog.V(4).Infof("[%s] ValidateVolumeCapabilities called with req: %#v", loggerId, reqToLog)
+
 	if volumeID == "" {
 		return nil, status.Error(codes.InvalidArgument, "VolumeID not present")
 	}
@@ -3001,11 +3005,13 @@ func (cs *ScaleControllerServer) ValidateVolumeCapabilities(ctx context.Context,
 
 func (cs *ScaleControllerServer) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	loggerId := utils.GetLoggerId(ctx)
-	klog.Infof("[%s] controllerserver ControllerUnpublishVolume", loggerId)
-	klog.V(4).Infof("[%s] ControllerUnpublishVolume : req %#v", loggerId, req)
+
+	reqToLog := proto.Clone(req).(*csi.ControllerUnpublishVolumeRequest)
+	reqToLog.Secrets = nil
+	klog.Infof("[%s] ControllerUnpublishVolume - request: %#v", loggerId, reqToLog)
 
 	if err := cs.Driver.ValidateControllerServiceRequest(ctx, csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME); err != nil {
-		klog.Errorf("[%s] invalid Unpublish volume request: %v", loggerId, req)
+		klog.Errorf("[%s] invalid Unpublish volume request: %v", loggerId, reqToLog)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerUnpublishVolume: ValidateControllerServiceRequest failed: %v", err))
 	}
 
@@ -3020,11 +3026,13 @@ func (cs *ScaleControllerServer) ControllerUnpublishVolume(ctx context.Context, 
 
 func (cs *ScaleControllerServer) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) { //nolint:gocyclo,funlen
 	loggerId := utils.GetLoggerId(ctx)
-	klog.Infof("[%s] Controllerserver ControllerPublishVolume", loggerId)
-	klog.V(4).Infof("[%s] ControllerPublishVolume : req %#v", loggerId, req)
+
+	reqToLog := proto.Clone(req).(*csi.ControllerPublishVolumeRequest)
+	reqToLog.Secrets = nil
+	klog.Infof("[%s] ControllerPublishVolume - request: %#v", loggerId, reqToLog)
 
 	if err := cs.Driver.ValidateControllerServiceRequest(ctx, csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME); err != nil {
-		klog.Errorf("[%s] Invalid Publish volume request: %v", loggerId, req)
+		klog.Errorf("[%s] Invalid Publish volume request: %v", loggerId, reqToLog)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerPublishVolume: ValidateControllerServiceRequest failed: %v", err))
 	}
 
@@ -3478,10 +3486,13 @@ func (cs *ScaleControllerServer) MakeSnapMetadataDir(ctx context.Context, conn c
 func (cs *ScaleControllerServer) CreateSnapshot(newctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) { //nolint:gocyclo,funlen
 	loggerId := utils.GetLoggerId(newctx)
 	ctx := utils.SetModuleName(newctx, createSnapshot)
-	klog.Infof("[%s] CreateSnapshot - create snapshot req: %v", loggerId, req)
+
+	reqToLog := proto.Clone(req).(*csi.CreateSnapshotRequest)
+	reqToLog.Secrets = nil
+	klog.Infof("[%s] CreateSnapshot - create snapshot req: %v", loggerId, reqToLog)
 
 	if err := cs.Driver.ValidateControllerServiceRequest(ctx, csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT); err != nil {
-		klog.Errorf("[%s] CreateSnapshot - invalid create snapshot req: %v", loggerId, req)
+		klog.Errorf("[%s] CreateSnapshot - invalid create snapshot req: %v", loggerId, reqToLog)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("CreateSnapshot ValidateControllerServiceRequest failed: %v", err))
 	}
 
@@ -3931,10 +3942,13 @@ func parseStatDirInfo(statInfo string) (int, error) {
 func (cs *ScaleControllerServer) DeleteSnapshot(newctx context.Context, req *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
 	loggerId := utils.GetLoggerId(newctx)
 	ctx := utils.SetModuleName(newctx, deleteSnapshot)
-	klog.Infof("[%s] DeleteSnapshot - delete snapshot req: %v", loggerId, req)
+
+	reqToLog := proto.Clone(req).(*csi.DeleteSnapshotRequest)
+	reqToLog.Secrets = nil
+	klog.Infof("[%s] DeleteSnapshot - delete snapshot req: %v", loggerId, reqToLog)
 
 	if err := cs.Driver.ValidateControllerServiceRequest(ctx, csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT); err != nil {
-		klog.Errorf("[%s] DeleteSnapshot - invalid delete snapshot req %v: %v", loggerId, req, err)
+		klog.Errorf("[%s] DeleteSnapshot - invalid delete snapshot req %v: %v", loggerId, reqToLog, err)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("DeleteSnapshot - ValidateControllerServiceRequest failed: %v", err))
 	}
 
@@ -4101,10 +4115,13 @@ func (cs *ScaleControllerServer) ListVolumes(ctx context.Context, req *csi.ListV
 }
 func (cs *ScaleControllerServer) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	loggerId := utils.GetLoggerId(ctx)
-	klog.Infof("[%s] ControllerExpandVolume - Volume expand req: %v", loggerId, req)
+
+	reqToLog := proto.Clone(req).(*csi.ControllerExpandVolumeRequest)
+	reqToLog.Secrets = nil
+	klog.Infof("[%s] ControllerExpandVolume - Volume expand req: %v", loggerId, reqToLog)
 
 	if err := cs.Driver.ValidateControllerServiceRequest(ctx, csi.ControllerServiceCapability_RPC_EXPAND_VOLUME); err != nil {
-		klog.Errorf("[%s] ControllerExpandVolume - invalid expand volume req: %v", loggerId, req)
+		klog.Errorf("[%s] ControllerExpandVolume - invalid expand volume req: %v", loggerId, reqToLog)
 		return nil, status.Error(codes.Internal, fmt.Sprintf("ControllerExpandVolume ValidateControllerServiceRequest failed: %v", err))
 	}
 
