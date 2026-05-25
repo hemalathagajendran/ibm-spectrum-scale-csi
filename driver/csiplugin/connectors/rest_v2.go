@@ -703,7 +703,7 @@ func updateFilesetWithS3TuningParams(ctx context.Context, filesetreq *CreateFile
 
 	afmPrefetchThresholdValue, afmPrefetchThresholdFound := opts[AfmPrefetchThreshold]
 	if afmPrefetchThresholdFound {
-		filesetreq.AfmPrefetchThreshold = afmPrefetchThresholdValue.(int)
+		filesetreq.AfmPrefetchThreshold = afmPrefetchThresholdValue.(string)
 	} else {
 		filesetreq.AfmPrefetchThreshold = AfmPrefetchThresholdDefault
 	}
