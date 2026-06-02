@@ -684,6 +684,13 @@ func updateFilesetWithNfsTuningParams(ctx context.Context, filesetreq *CreateFil
 	} else {
 		filesetreq.AfmFileOpenRefreshInterval = AfmFileOpenRefreshIntervalDefault
 	}
+
+	afmAsyncPrefetchIntervalValue, afmAsyncPrefetchIntervalFound := opts[AfmAsyncPrefetchInterval]
+	if afmAsyncPrefetchIntervalFound {
+		filesetreq.AfmAsyncPrefetchInterval = afmAsyncPrefetchIntervalValue.(string)
+	} else {
+		filesetreq.AfmAsyncPrefetchInterval = AfmAsyncPrefetchIntervalDefault
+	}
 }
 
 func updateFilesetWithS3TuningParams(ctx context.Context, filesetreq *CreateFilesetRequest, opts map[string]interface{}) {

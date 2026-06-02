@@ -896,6 +896,14 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 				cacheVolId.NfsTuningParams[vacKey] = vacValue
 			}
 
+		case connectors.AfmAsyncPrefetchInterval:
+			afmAsyncPrefetchIntervalValue, _ := strconv.Atoi(vacValue)
+			if afmAsyncPrefetchIntervalValue < 0 || afmAsyncPrefetchIntervalValue > refreshInterval {
+				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmAsyncPrefetchInterval))
+			} else {
+				cacheVolId.NfsTuningParams[vacKey] = vacValue
+			}
+
 		default:
 			klog.Infof("[%s] parameter configured in vac is not in default supported list", loggerId)
 		}
