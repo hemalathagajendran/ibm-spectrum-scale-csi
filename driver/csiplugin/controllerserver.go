@@ -741,7 +741,7 @@ func getS3TuningParams(ctx context.Context) []string {
 }
 
 func getNfsTuningParams(ctx context.Context) []string {
-	return []string{connectors.AfmFileOpenRefreshInterval, connectors.AfmDirLookupRefreshInterval, connectors.AfmDirOpenRefreshInterval, connectors.AfmFileLookupRefreshInterval}
+	return []string{connectors.AfmFileOpenRefreshInterval, connectors.AfmDirLookupRefreshInterval, connectors.AfmDirOpenRefreshInterval, connectors.AfmFileLookupRefreshInterval, connectors.AfmAsyncPrefetchInterval}
 }
 
 func (cs *ScaleControllerServer) getConnFromClusterID(ctx context.Context, cid string, fsUUID string) (connectors.SpectrumScaleConnector, string, error) {
