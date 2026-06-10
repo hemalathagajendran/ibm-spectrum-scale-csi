@@ -287,7 +287,7 @@ func getScaleVolumeOptions(ctx context.Context, volOptions map[string]string) (*
 		fsetType = independentFileset
 	}
 
-	if !fsetTypeSpecified && volDirPathSpecified && !isSCAdvanced && volumeType == vmdiskCloning{
+	if !fsetTypeSpecified && volDirPathSpecified && !isSCAdvanced && volumeType == vmdiskCloning {
 		fsetTypeSpecified = true
 		fsetType = independentFileset
 	}

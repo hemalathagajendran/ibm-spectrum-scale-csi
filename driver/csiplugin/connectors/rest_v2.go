@@ -924,9 +924,9 @@ func (s *SpectrumRestV2) DeleteBucketKeys(ctx context.Context, bucket string) er
 	return nil
 }
 
-func (s *SpectrumRestV2) DeleteNodeMappingAFMWithCos(ctx context.Context, exportMapName string) error {
+func (s *SpectrumRestV2) DeleteNodeMapping(ctx context.Context, exportMapName string) error {
 	loggerID := utils.GetLoggerId(ctx)
-	klog.V(4).Infof("[%s] rest_v2 DeleteNodeMappingAFMWithCos", loggerID)
+	klog.V(4).Infof("[%s] rest_v2 DeleteNodeMapping", loggerID)
 
 	deleteExportMapNameURL := "scalemgmt/v2/nodes/afm/mapping/" + exportMapName
 	deleteExportMapNameResponse := GenericResponse{}
@@ -1026,9 +1026,9 @@ func (s *SpectrumRestV2) CreateS3CacheFileset(ctx context.Context, filesystemNam
 }
 
 // create export map with cloud/NFS and Gateway node
-func (s *SpectrumRestV2) CreateNodeMappingAFMWithCos(ctx context.Context, exportMapName string, gatewayNodeName string, bucketInfo, nfsInfo map[string]string, isNfsSupported bool) error {
+func (s *SpectrumRestV2) CreateNodeMapping(ctx context.Context, exportMapName string, gatewayNodeName string, bucketInfo, nfsInfo map[string]string, isNfsSupported bool) error {
 	loggerID := utils.GetLoggerId(ctx)
-	klog.V(4).Infof("[%s] rest_v2 CreateNodeMappingAFMWithCos.exportMapName:[%s],gatewayNodeName:[%s]:", loggerID, exportMapName, gatewayNodeName)
+	klog.V(4).Infof("[%s] rest_v2 CreateNodeMapping.exportMapName:[%s],gatewayNodeName:[%s]:", loggerID, exportMapName, gatewayNodeName)
 
 	exportMapReq := CreateNodeMapAFMCosRequest{}
 	exportMapReq.MapName = exportMapName
@@ -1059,7 +1059,7 @@ func (s *SpectrumRestV2) CreateNodeMappingAFMWithCos(ctx context.Context, export
 
 	exportMapReq.NoServerResolution = true
 
-	klog.V(4).Infof("[%s] rest_v2 CreateNodeMappingAFMWithCos. exportMapReq: %v :", loggerID, exportMapReq)
+	klog.V(4).Infof("[%s] rest_v2 CreateNodeMapping. exportMapReq: %v :", loggerID, exportMapReq)
 
 	createExportMapURL := "scalemgmt/v2/nodes/afm/mapping"
 	createExportMapResponse := GenericResponse{}
@@ -1067,26 +1067,26 @@ func (s *SpectrumRestV2) CreateNodeMappingAFMWithCos(ctx context.Context, export
 	err := s.doHTTP(ctx, createExportMapURL, "POST", &createExportMapResponse, exportMapReq)
 	if err != nil {
 		if strings.Contains(createExportMapResponse.Status.Message, "Mapping "+exportMapName+" already exists") {
-			klog.V(6).Infof("[%s] Failed to create NodeMappingAFMWithCos exportMapName, exportMap is already exists. So returning success %v", utils.GetLoggerId(ctx), err)
+			klog.V(6).Infof("[%s] Failed to create NodeMapping exportMapName, exportMap is already exists. So returning success %v", utils.GetLoggerId(ctx), err)
 			return nil
 		}
-		klog.Errorf("[%s] Failed to create NodeMappingAFMWithCos exportMapName: %s, error: %v", loggerID, exportMapName, err)
+		klog.Errorf("[%s] Failed to create NodeMapping exportMapName: %s, error: %v", loggerID, exportMapName, err)
 		return err
 	}
 
 	err = s.isRequestAccepted(ctx, createExportMapResponse, createExportMapURL)
 	if err != nil {
-		klog.Errorf("[%s] NodeMappingAFMWithCos request for exportMapName %s is not accepted for processing, error: %v", loggerID, exportMapName, err)
+		klog.Errorf("[%s] NodeMapping request for exportMapName %s is not accepted for processing, error: %v", loggerID, exportMapName, err)
 		return err
 	}
 
 	err = s.WaitForJobCompletion(ctx, createExportMapResponse.Status.Code, createExportMapResponse.Jobs[0].JobID)
 	if err != nil {
 		if strings.Contains(err.Error(), "EFSSP1102C") { // job failed as fileset already exists
-			klog.Infof("The NodeMappingAFMWithCos exists already, error: %v", err)
+			klog.Infof("The NodeMapping exists already, error: %v", err)
 			return nil
 		}
-		klog.Errorf("[%s]  Failed to create NodeMappingAFMWithCos exportMapName: %s, error: %v", loggerID, exportMapName, err)
+		klog.Errorf("[%s]  Failed to create NodeMapping exportMapName: %s, error: %v", loggerID, exportMapName, err)
 		return err
 	}
 	return nil
