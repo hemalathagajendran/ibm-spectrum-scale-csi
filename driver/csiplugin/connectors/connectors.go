@@ -152,7 +152,7 @@ const (
 
 	// default value for AFM tuning parameters
 	AfmNumFlushThreadsDefault           int    = 4
-	AfmPrefetchThresholdDefault         int    = 0
+	AfmPrefetchThresholdDefault         string = "0"
 	AfmFileOpenRefreshIntervalDefault   string = "30"
 	AfmNumReadThreadsDefault            int    = 1
 	AfmObjectFastReaddirDefault         string = "no"
@@ -160,7 +160,6 @@ const (
 	AfmDirLookupRefreshIntervalDefault  string = "60"
 	AfmDirOpenRefreshIntervalDefault    string = "60"
 	AfmFileLookupRefreshIntervalDefault string = "30"
-	AfmAsyncPrefetchIntervalDefault     string = "30"
 )
 
 func GetSpectrumScaleConnector(ctx context.Context, config settings.Clusters) (SpectrumScaleConnector, error) {
