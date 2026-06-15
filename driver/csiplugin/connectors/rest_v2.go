@@ -924,9 +924,9 @@ func (s *SpectrumRestV2) DeleteBucketKeys(ctx context.Context, bucket string) er
 	return nil
 }
 
-func (s *SpectrumRestV2) DeleteNodeMapping(ctx context.Context, exportMapName string) error {
+func (s *SpectrumRestV2) DeleteCacheVolumeNodeMapping(ctx context.Context, exportMapName string) error {
 	loggerID := utils.GetLoggerId(ctx)
-	klog.V(4).Infof("[%s] rest_v2 DeleteNodeMapping", loggerID)
+	klog.V(4).Infof("[%s] rest_v2 DeleteCacheVolumeNodeMapping", loggerID)
 
 	deleteExportMapNameURL := "scalemgmt/v2/nodes/afm/mapping/" + exportMapName
 	deleteExportMapNameResponse := GenericResponse{}
@@ -1026,9 +1026,9 @@ func (s *SpectrumRestV2) CreateS3CacheFileset(ctx context.Context, filesystemNam
 }
 
 // create export map with cloud/NFS and Gateway node
-func (s *SpectrumRestV2) CreateNodeMapping(ctx context.Context, exportMapName string, gatewayNodeName string, bucketInfo, nfsInfo map[string]string, isNfsSupported bool) error {
+func (s *SpectrumRestV2) CreateCacheVolumeNodeMapping(ctx context.Context, exportMapName string, gatewayNodeName string, bucketInfo, nfsInfo map[string]string, isNfsSupported bool) error {
 	loggerID := utils.GetLoggerId(ctx)
-	klog.V(4).Infof("[%s] rest_v2 CreateNodeMapping.exportMapName:[%s],gatewayNodeName:[%s]:", loggerID, exportMapName, gatewayNodeName)
+	klog.V(4).Infof("[%s] rest_v2 CreateCacheVolumeNodeMapping.exportMapName:[%s],gatewayNodeName:[%s]:", loggerID, exportMapName, gatewayNodeName)
 
 	exportMapReq := CreateNodeMapAFMCosRequest{}
 	exportMapReq.MapName = exportMapName
@@ -1059,7 +1059,7 @@ func (s *SpectrumRestV2) CreateNodeMapping(ctx context.Context, exportMapName st
 
 	exportMapReq.NoServerResolution = true
 
-	klog.V(4).Infof("[%s] rest_v2 CreateNodeMapping. exportMapReq: %v :", loggerID, exportMapReq)
+	klog.V(4).Infof("[%s] rest_v2 CreateCacheVolumeNodeMapping. exportMapReq: %v :", loggerID, exportMapReq)
 
 	createExportMapURL := "scalemgmt/v2/nodes/afm/mapping"
 	createExportMapResponse := GenericResponse{}

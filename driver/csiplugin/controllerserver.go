@@ -669,7 +669,7 @@ func createExportMap(ctx context.Context, scVol *scaleVolume, volName string, ca
 	loggerId := utils.GetLoggerId(ctx)
 	// Add node mapping for AFM with COS for a cache volume
 	exportMapName := volName + "-exportmap"
-	nodeMappingError := scVol.Connector.CreateNodeMapping(ctx, exportMapName, cacheVolId.GateWayNode, cacheVolId.BucketInfo, cacheVolId.NfsInfo, cacheVolId.IsNfsSupported)
+	nodeMappingError := scVol.Connector.CreateCacheVolumeNodeMapping(ctx, exportMapName, cacheVolId.GateWayNode, cacheVolId.BucketInfo, cacheVolId.NfsInfo, cacheVolId.IsNfsSupported)
 	if nodeMappingError != nil {
 		klog.Errorf("[%s] failed in nodeMappingError for volume %s", loggerId, volName)
 		return "", status.Error(codes.Internal, fmt.Sprintf("failed to create NodeMappingAFMWithCos for volume %s, error: %v", volName, nodeMappingError))
@@ -3089,7 +3089,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 							return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete bucket keys for volume %s, error: %v", volumeName, err))
 						}
 					}
-					err = conn.DeleteNodeMapping(ctx, volumeName+"-exportmap")
+					err = conn.DeleteCacheVolumeNodeMapping(ctx, volumeName+"-exportmap")
 					if err != nil {
 						klog.Errorf("[%s] failed to delete node mapping exportMap for volume %s", loggerId, volumeName)
 						return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete node mapping exportMap for volume %s, error: %v", volumeName, err))
