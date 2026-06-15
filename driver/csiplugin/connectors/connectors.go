@@ -160,6 +160,7 @@ const (
 	AfmDirLookupRefreshIntervalDefault  string = "60"
 	AfmDirOpenRefreshIntervalDefault    string = "60"
 	AfmFileLookupRefreshIntervalDefault string = "30"
+	AfmAsyncPrefetchIntervalDefault     string = "30"
 )
 
 func GetSpectrumScaleConnector(ctx context.Context, config settings.Clusters) (SpectrumScaleConnector, error) {
