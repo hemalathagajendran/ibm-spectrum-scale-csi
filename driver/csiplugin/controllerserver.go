@@ -669,7 +669,7 @@ func createExportMap(ctx context.Context, scVol *scaleVolume, volName string, ca
 	loggerId := utils.GetLoggerId(ctx)
 	// Add node mapping for AFM with COS for a cache volume
 	exportMapName := volName + "-exportmap"
-	nodeMappingError := scVol.Connector.CreateNodeMappingAFMWithCos(ctx, exportMapName, cacheVolId.GateWayNode, cacheVolId.BucketInfo, cacheVolId.NfsInfo, cacheVolId.IsNfsSupported)
+	nodeMappingError := scVol.Connector.CreateCacheVolumeNodeMapping(ctx, exportMapName, cacheVolId.GateWayNode, cacheVolId.BucketInfo, cacheVolId.NfsInfo, cacheVolId.IsNfsSupported)
 	if nodeMappingError != nil {
 		klog.Errorf("[%s] failed in nodeMappingError for volume %s", loggerId, volName)
 		return "", status.Error(codes.Internal, fmt.Sprintf("failed to create NodeMappingAFMWithCos for volume %s, error: %v", volName, nodeMappingError))
@@ -736,12 +736,12 @@ func updateComment(ctx context.Context, scVol *scaleVolume, cacheVolId *cacheVol
 	return scVol.Connector.UpdateFileset(ctx, scVol.VolBackendFs, scVol.StorageClassType, scVol.VolName, updateOpts, setAfmAttributes)
 }
 
-func getS3TuningParams(ctx context.Context) []string {
+func getS3TuningParams() []string {
 	return []string{connectors.AfmReadSparseThreshold, connectors.AfmNumFlushThreads, connectors.AfmPrefetchThreshold, connectors.AfmObjectFastReaddir, connectors.AfmFileOpenRefreshInterval}
 }
 
-func getNfsTuningParams(ctx context.Context) []string {
-	return []string{connectors.AfmFileOpenRefreshInterval, connectors.AfmDirLookupRefreshInterval, connectors.AfmDirOpenRefreshInterval, connectors.AfmFileLookupRefreshInterval}
+func getNfsTuningParams() []string {
+	return []string{connectors.AfmFileOpenRefreshInterval, connectors.AfmDirLookupRefreshInterval, connectors.AfmDirOpenRefreshInterval, connectors.AfmFileLookupRefreshInterval, connectors.AfmAsyncPrefetchInterval}
 }
 
 func (cs *ScaleControllerServer) getConnFromClusterID(ctx context.Context, cid string, fsUUID string) (connectors.SpectrumScaleConnector, string, error) {
@@ -820,12 +820,12 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 	for vacKey, vacValue := range mutableParams {
 
 		if cacheVolId.IsNfsSupported {
-			nfsTuningParams := getNfsTuningParams(ctx)
+			nfsTuningParams := getNfsTuningParams()
 			if !utils.ContainsString(vacKey, nfsTuningParams) {
 				return status.Error(codes.Internal, fmt.Sprintf("Invalid nfs vac tuning parameter [%s] is provided. Please check case/parameter before providing in vac", vacKey))
 			}
 		} else {
-			s3TuningParams := getS3TuningParams(ctx)
+			s3TuningParams := getS3TuningParams()
 			if !utils.ContainsString(vacKey, s3TuningParams) {
 				return status.Error(codes.Internal, fmt.Sprintf("Invalid s3 vac tuning parameter [%s] is provided. Please check case/parameter before providing in vac", vacKey))
 			}
@@ -892,6 +892,14 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 			afmFileLookupRefreshIntervalValue, _ := strconv.Atoi(vacValue)
 			if afmFileLookupRefreshIntervalValue < 0 || afmFileLookupRefreshIntervalValue > refreshInterval {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmFileLookupRefreshInterval))
+			} else {
+				cacheVolId.NfsTuningParams[vacKey] = vacValue
+			}
+
+		case connectors.AfmAsyncPrefetchInterval:
+			afmAsyncPrefetchIntervalValue, _ := strconv.Atoi(vacValue)
+			if afmAsyncPrefetchIntervalValue < 1 || afmAsyncPrefetchIntervalValue > refreshInterval {
+				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmAsyncPrefetchInterval))
 			} else {
 				cacheVolId.NfsTuningParams[vacKey] = vacValue
 			}
@@ -3081,7 +3089,7 @@ func (cs *ScaleControllerServer) DeleteVolume(newctx context.Context, req *csi.D
 							return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete bucket keys for volume %s, error: %v", volumeName, err))
 						}
 					}
-					err = conn.DeleteNodeMappingAFMWithCos(ctx, volumeName+"-exportmap")
+					err = conn.DeleteCacheVolumeNodeMapping(ctx, volumeName+"-exportmap")
 					if err != nil {
 						klog.Errorf("[%s] failed to delete node mapping exportMap for volume %s", loggerId, volumeName)
 						return nil, status.Error(codes.Internal, fmt.Sprintf("failed to delete node mapping exportMap for volume %s, error: %v", volumeName, err))

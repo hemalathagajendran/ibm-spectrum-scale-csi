@@ -46,9 +46,9 @@ type SpectrumScaleConnector interface {
 	CheckFilesetWithAFMTarget(ctx context.Context, filesystemName string, afmTarget string) (string, error)
 	SetBucketKeys(ctx context.Context, access map[string]string, exportMapName string) error
 	DeleteBucketKeys(ctx context.Context, bucket string) error
-	DeleteNodeMappingAFMWithCos(ctx context.Context, exportMapName string) error
+	DeleteCacheVolumeNodeMapping(ctx context.Context, exportMapName string) error
 	CreateS3CacheFileset(ctx context.Context, filesystemName string, filesetName string, mode string, opts map[string]interface{}, access map[string]string, exportMapName string, parsedURL *url.URL) error
-	CreateNodeMappingAFMWithCos(ctx context.Context, exportMapName string, gatewayNodeName string, bucketInfo, nfsInfo map[string]string, isNfsSupported bool) error
+	CreateCacheVolumeNodeMapping(ctx context.Context, exportMapName string, gatewayNodeName string, bucketInfo, nfsInfo map[string]string, isNfsSupported bool) error
 	UpdateFileset(ctx context.Context, filesystemName string, volType string, filesetName string, opts map[string]interface{}, setAfmAttributes string) error
 	DeleteFileset(ctx context.Context, filesystemName string, filesetName string) error
 	//LinkFileset(filesystemName string, filesetName string) error
@@ -148,17 +148,19 @@ const (
 	AfmDirLookupRefreshInterval  string = "afmDirLookupRefreshInterval"
 	AfmDirOpenRefreshInterval    string = "afmDirOpenRefreshInterval"
 	AfmFileLookupRefreshInterval string = "afmFileLookupRefreshInterval"
+	AfmAsyncPrefetchInterval     string = "afmAsyncPrefetchInterval"
 
 	// default value for AFM tuning parameters
-	AfmNumFlushThreadsDefault           int      = 4
-	AfmPrefetchThresholdDefault         int      = 0
-	AfmFileOpenRefreshIntervalDefault   string   = "30"
-	AfmNumReadThreadsDefault            int      = 1
-	AfmObjectFastReaddirDefault         string   = "no"
-	AfmReadSparseThresholdDefault       string   = "128"
-	AfmDirLookupRefreshIntervalDefault  string   = "60"
-	AfmDirOpenRefreshIntervalDefault    string   = "60"
-	AfmFileLookupRefreshIntervalDefault string   = "30"
+	AfmNumFlushThreadsDefault           int    = 4
+	AfmPrefetchThresholdDefault         string = "0"
+	AfmFileOpenRefreshIntervalDefault   string = "30"
+	AfmNumReadThreadsDefault            int    = 1
+	AfmObjectFastReaddirDefault         string = "no"
+	AfmReadSparseThresholdDefault       string = "128"
+	AfmDirLookupRefreshIntervalDefault  string = "60"
+	AfmDirOpenRefreshIntervalDefault    string = "60"
+	AfmFileLookupRefreshIntervalDefault string = "30"
+	AfmAsyncPrefetchIntervalDefault     string = "30"
 )
 
 func GetSpectrumScaleConnector(ctx context.Context, config settings.Clusters) (SpectrumScaleConnector, error) {
