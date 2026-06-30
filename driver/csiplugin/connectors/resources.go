@@ -649,7 +649,7 @@ type CreateFilesetRequest struct {
 	AfmParallelReadThreshold     int    `json:"afmParallelReadThreshold,omitempty"`
 	AfmParallelWriteChunkSize    int    `json:"afmParallelWriteChunkSize,omitempty"`
 	AfmParallelWriteThreshold    int    `json:"afmParallelWriteThreshold,omitempty"`
-	AfmPrefetchThreshold         int    `json:"afmPrefetchThreshold,omitempty"`
+	AfmPrefetchThreshold         string `json:"afmPrefetchThreshold,omitempty"`
 	AfmPrimaryID                 string `json:"afmPrimaryID,omitempty"`
 	AfmRPO                       int    `json:"afmRPO,omitempty"`
 	AfmShowHomeSnapshots         string `json:"afmShowHomeSnapshots,omitempty"`
