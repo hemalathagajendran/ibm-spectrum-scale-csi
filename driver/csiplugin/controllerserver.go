@@ -853,7 +853,7 @@ func validateVACParams(ctx context.Context, mutableParams map[string]string, cac
 			if afmPrefetchThresholdValue < 0 || afmPrefetchThresholdValue > 100 {
 				return status.Error(codes.Internal, fmt.Sprintf("invalid value specified for the parameter[%s]", connectors.AfmPrefetchThreshold))
 			} else {
-				cacheVolId.S3TuningParams[vacKey] = afmPrefetchThresholdValue
+				cacheVolId.S3TuningParams[vacKey] = vacValue
 			}
 
 		case connectors.AfmObjectFastReaddir:
