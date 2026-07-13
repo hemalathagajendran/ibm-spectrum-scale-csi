@@ -26,12 +26,12 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/IBM/ibm-spectrum-scale-csi/driver/csiplugin/utils"
-	"golang.org/x/net/context"
-	"k8s.io/mount-utils"
-    "google.golang.org/protobuf/proto"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
+	"k8s.io/mount-utils"
 )
 
 type ScaleNodeServer struct {
@@ -271,11 +271,15 @@ func (ns *ScaleNodeServer) NodePublishVolume(ctx context.Context, req *csi.NodeP
 		}
 
 		// create bind mount
-		options := []string{"bind"}
-		klog.V(4).Infof("[%s] NodePublishVolume - creating bind mount [%v] -> [%v]", loggerId, targetPath, volScalePath)
-		if err := mounter.Mount(volScalePath, targetPath, "", options); err != nil {
-			klog.Errorf("[%s] NodePublishVolume - mounting [%s] at [%s] failed with error [%v]", loggerId, volScalePath, targetPath, err)
-			return nil, fmt.Errorf("NodePublishVolume - mounting [%s] at [%s] failed with error [%v]", volScalePath, targetPath, err)
+		// Use volScalePathInContainer (/host + volScalePath) as the bind-mount source so
+		// that the statfs(2) call in bindMount succeeds inside the container
+		// (the container filesystem only exposes paths under /host).
+		// The privileged container shares the host mount namespace, so the kernel resolves
+		// /host/... to the same inode as the bare host path, producing an identical bind mount.
+		klog.V(4).Infof("[%s] NodePublishVolume - creating bind mount [%v] -> [%v]", loggerId, targetPath, volScalePathInContainer)
+		if err := bindMount(volScalePathInContainer, targetPath); err != nil {
+			klog.Errorf("[%s] NodePublishVolume - mounting [%s] at [%s] failed with error [%v]", loggerId, volScalePathInContainer, targetPath, err)
+			return nil, fmt.Errorf("NodePublishVolume - mounting [%s] at [%s] failed with error [%v]", volScalePathInContainer, targetPath, err)
 		}
 
 		//check for the gpfs type again, if not gpfs type, unmount and return error.
