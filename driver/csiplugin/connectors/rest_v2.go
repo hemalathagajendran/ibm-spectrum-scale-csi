@@ -1086,6 +1086,10 @@ func (s *SpectrumRestV2) CreateCacheVolumeNodeMapping(ctx context.Context, expor
 			klog.Infof("The NodeMapping exists already, error: %v", err)
 			return nil
 		}
+		if strings.Contains(err.Error(), "AFM target map "+exportMapName+" is already defined") { // job failed as export-map already exists
+			klog.V(6).Infof("[%s] Create NodeMapping exportMapName failed, exportMap is already exists. So returning success %v", utils.GetLoggerId(ctx), err)
+			return nil
+		}
 		klog.Errorf("[%s]  Failed to create NodeMapping exportMapName: %s, error: %v", loggerID, exportMapName, err)
 		return err
 	}
