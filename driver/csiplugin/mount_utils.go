@@ -22,33 +22,43 @@ package scale
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"golang.org/x/sys/unix"
 )
 
-// bindMount performs a bind mount of source onto target using the system
+// bindMount performs a bind mount of hostSource onto target using the system
 // mount(8) binary, mirroring the behaviour of mount.Mounter.Mount with the
 // "bind" option:
 //
-//  1. First pass: mount --bind <source> <target>
-//  2. Second pass: mount --bind --remount <source> <target>
+//  1. First pass: mount --bind <hostSource> <target>
+//  2. Second pass: mount -o remount,bind[,ro,nodev,…] <hostSource> <target>
 //     with any read-only / nodev / noexec / nosuid / noatime / relatime /
 //     nodiratime flags inherited from the source filesystem via statfs(2).
 //
-// Using the /host-prefixed source path ensures that the statfs(2) call
-// succeeds inside the container (the container filesystem only exposes
-// paths under /host).
-func bindMount(source, target string) error {
-	// First pass: establish the bind mount.
-	if out, err := exec.Command("mount", "--bind", source, target).CombinedOutput(); err != nil {
-		return fmt.Errorf("mount --bind %s %s failed: %v\nOutput: %s", source, target, err, string(out))
+// hostSource is the bare host path (e.g. /ibm/fs1/pvc-…/data) passed to the
+// mount(8) binary — the external process resolves paths in the host mount
+// namespace and does not see the /host prefix used inside the container.
+//
+// statfsSource is the /host-prefixed path (e.g. /host/ibm/fs1/pvc-…/data)
+// used only for the in-process statfs(2) call, which succeeds because the
+// container filesystem exposes host paths under /host.
+func bindMount(hostSource, statfsSource, target string) error {
+	// First pass: establish the bind mount using the bare host path.
+	if out, err := exec.Command("mount", "--bind", hostSource, target).CombinedOutput(); err != nil {
+		return fmt.Errorf("mount --bind %s %s failed: %v\nOutput: %s", hostSource, target, err, string(out))
 	}
 
-	// Derive the mount flags that are active on the source filesystem so that
-	// the bind mount inherits them (e.g. ro, nodev, nosuid, noexec, …).
-	remountOpts := []string{"--bind", "--remount"}
+	// Derive the mount flags active on the source filesystem so the bind mount
+	// inherits them (e.g. ro, nodev, nosuid, noexec, …). Use the /host-prefixed
+	// path so statfs(2) resolves correctly inside the container.
+	//
+	// All options — including "remount" and "bind" — are passed as a single
+	// comma-separated -o argument, which is the correct mount(8) syntax.
+	// "--remount" is not a valid standalone flag for mount(8).
+	mountOpts := []string{"remount", "bind"}
 	var st unix.Statfs_t
-	if err := unix.Statfs(source, &st); err == nil {
+	if err := unix.Statfs(statfsSource, &st); err == nil {
 		flagMap := map[int]string{
 			unix.MS_RDONLY:     "ro",
 			unix.MS_NODEV:      "nodev",
@@ -60,15 +70,15 @@ func bindMount(source, target string) error {
 		}
 		for flag, opt := range flagMap {
 			if int(st.Flags)&flag == flag {
-				remountOpts = append(remountOpts, "-o", opt)
+				mountOpts = append(mountOpts, opt)
 			}
 		}
 	}
 
-	// Second pass: remount to propagate inherited flags.
-	remountArgs := append(remountOpts, source, target)
-	if out, err := exec.Command("mount", remountArgs...).CombinedOutput(); err != nil {
-		return fmt.Errorf("mount --bind --remount %s %s failed: %v\nOutput: %s", source, target, err, string(out))
+	// Second pass: remount with inherited flags.
+	opts := strings.Join(mountOpts, ",")
+	if out, err := exec.Command("mount", "-o", opts, hostSource, target).CombinedOutput(); err != nil {
+		return fmt.Errorf("mount -o %s %s %s failed: %v\nOutput: %s", opts, hostSource, target, err, string(out))
 	}
 
 	return nil

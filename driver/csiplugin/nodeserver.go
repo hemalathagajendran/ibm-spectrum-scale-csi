@@ -271,15 +271,14 @@ func (ns *ScaleNodeServer) NodePublishVolume(ctx context.Context, req *csi.NodeP
 		}
 
 		// create bind mount
-		// Use volScalePathInContainer (/host + volScalePath) as the bind-mount source so
-		// that the statfs(2) call in bindMount succeeds inside the container
-		// (the container filesystem only exposes paths under /host).
-		// The privileged container shares the host mount namespace, so the kernel resolves
-		// /host/... to the same inode as the bare host path, producing an identical bind mount.
-		klog.V(4).Infof("[%s] NodePublishVolume - creating bind mount [%v] -> [%v]", loggerId, targetPath, volScalePathInContainer)
-		if err := bindMount(volScalePathInContainer, targetPath); err != nil {
-			klog.Errorf("[%s] NodePublishVolume - mounting [%s] at [%s] failed with error [%v]", loggerId, volScalePathInContainer, targetPath, err)
-			return nil, fmt.Errorf("NodePublishVolume - mounting [%s] at [%s] failed with error [%v]", volScalePathInContainer, targetPath, err)
+		// volScalePath (bare host path) is passed to the mount(8) binary, which
+		// runs as a child process in the host mount namespace and cannot see /host.
+		// volScalePathInContainer (/host + volScalePath) is used only for the
+		// in-process statfs(2) call inside bindMount, where /host is visible.
+		klog.V(4).Infof("[%s] NodePublishVolume - creating bind mount [%v] -> [%v]", loggerId, targetPath, volScalePath)
+		if err := bindMount(volScalePath, volScalePathInContainer, targetPath); err != nil {
+			klog.Errorf("[%s] NodePublishVolume - mounting [%s] at [%s] failed with error [%v]", loggerId, volScalePath, targetPath, err)
+			return nil, fmt.Errorf("NodePublishVolume - mounting [%s] at [%s] failed with error [%v]", volScalePath, targetPath, err)
 		}
 
 		//check for the gpfs type again, if not gpfs type, unmount and return error.
