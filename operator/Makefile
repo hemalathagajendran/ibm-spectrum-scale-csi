@@ -56,7 +56,7 @@ SHELL = /usr/bin/env bash -o pipefail
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v4.5.2
 CONTROLLER_GEN_VERSION ?= v0.17.3
-GOLANGCI_LINT_VERSION ?= v1.59.0
+GOLANGCI_LINT_VERSION ?= v2.9.0
 
 all: build
 
