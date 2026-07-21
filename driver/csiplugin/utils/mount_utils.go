@@ -1,5 +1,3 @@
-//go:build linux
-// +build linux
 
 /**
  * Copyright 2019, 2024 IBM Corp.
@@ -17,7 +15,7 @@
  * limitations under the License.
  */
 
-package scale
+package utils
 
 import (
 	"fmt"
@@ -27,7 +25,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// bindMount performs a bind mount of hostSource onto target using the system
+// BindMount performs a bind mount of hostSource onto target using the system
 // mount(8) binary, mirroring the behaviour of mount.Mounter.Mount with the
 // "bind" option:
 //
@@ -43,7 +41,7 @@ import (
 // statfsSource is the /host-prefixed path (e.g. /host/ibm/fs1/pvc-…/data)
 // used only for the in-process statfs(2) call, which succeeds because the
 // container filesystem exposes host paths under /host.
-func bindMount(hostSource, statfsSource, target string) error {
+func BindMount(hostSource, statfsSource, target string) error {
 	// First pass: establish the bind mount using the bare host path.
 	if out, err := exec.Command("mount", "--bind", hostSource, target).CombinedOutput(); err != nil {
 		return fmt.Errorf("mount --bind %s %s failed: %v\nOutput: %s", hostSource, target, err, string(out))

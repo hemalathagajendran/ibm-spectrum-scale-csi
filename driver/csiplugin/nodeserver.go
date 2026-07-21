@@ -274,9 +274,9 @@ func (ns *ScaleNodeServer) NodePublishVolume(ctx context.Context, req *csi.NodeP
 		// volScalePath (bare host path) is passed to the mount(8) binary, which
 		// runs as a child process in the host mount namespace and cannot see /host.
 		// volScalePathInContainer (/host + volScalePath) is used only for the
-		// in-process statfs(2) call inside bindMount, where /host is visible.
+		// in-process statfs(2) call inside BindMount, where /host is visible.
 		klog.V(4).Infof("[%s] NodePublishVolume - creating bind mount [%v] -> [%v]", loggerId, targetPath, volScalePath)
-		if err := bindMount(volScalePath, volScalePathInContainer, targetPath); err != nil {
+		if err := utils.BindMount(volScalePath, volScalePathInContainer, targetPath); err != nil {
 			klog.Errorf("[%s] NodePublishVolume - mounting [%s] at [%s] failed with error [%v]", loggerId, volScalePath, targetPath, err)
 			return nil, fmt.Errorf("NodePublishVolume - mounting [%s] at [%s] failed with error [%v]", volScalePath, targetPath, err)
 		}
