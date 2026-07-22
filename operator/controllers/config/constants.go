@@ -155,6 +155,7 @@ const (
 	EnvVolumeStatsCapabilityKey       = "VOLUME_STATS_CAPABILITY"
 	HostNetworkKey                    = "HOST_NETWORK"
 	EnvVolNamePrefixKey               = "VOLUME_NAME_PREFIX"
+	EnvStaticPVDynamicKey             = "STATIC_PV_DYNAMIC"
 
 	// Optional ConfigMap keys with prefix
 	EnvLogLevelKeyPrefixed              = EnvVarPrefix + EnvLogLevelKey
@@ -162,6 +163,7 @@ const (
 	EnvNodePublishMethodKeyPrefixed     = EnvVarPrefix + EnvNodePublishMethodKey
 	EnvVolumeStatsCapabilityKeyPrefixed = EnvVarPrefix + EnvVolumeStatsCapabilityKey
 	EnvVolNamePrefixKeyPrefixed         = EnvVarPrefix + EnvVolNamePrefixKey
+	EnvStaticPVDynamicKeyPrefixed       = EnvVarPrefix + EnvStaticPVDynamicKey
 
 	// Optional ConfigMap default values if not provided in the cm
 	DriverCPULimitsDefaultValue          = "600m"
@@ -174,6 +176,7 @@ const (
 	EnvVolumeStatsCapabilityDefaultValue = "ENABLED"
 	EnvHostNetworkDefaultValue           = "ENABLED"
 	EnvVolNamePrefixDefaultValue         = "pvc"
+	EnvStaticPVDynamicKeyDefaultValue    = "DISABLED"
 
 	// Driver and Sidecar Containers Resources limits
 	PodsCPULimitsLowerValue    = "20m"
@@ -199,7 +202,8 @@ var CSIOptionalConfigMapKeys = []string{
 	DriverCPULimits,
 	DriverMemoryLimits,
 	SidecarCPULimits,
-	SidecarMemoryLimits}
+	SidecarMemoryLimits,
+	EnvStaticPVDynamicKeyPrefixed}
 
 // allowed values of the optional cm variables
 var EnvLogLevelValues = []string{"TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "FATAL"}
@@ -207,6 +211,7 @@ var EnvNodePublishMethodValues = []string{"SYMLINK", "BINDMOUNT"}
 var EnvPersistentLogValues = []string{"ENABLED", "DISABLED"}
 var EnvVolumeStatsCapabilityValues = []string{"ENABLED", "DISABLED"}
 var EnvHostNetworkValues = []string{"ENABLED", "DISABLED"}
+var EnvStaticPVDynamicValues = []string{"ENABLED", "DISABLED"}
 
 const (
 	StatusConditionReady   = "Ready"
