@@ -2743,7 +2743,7 @@ func setDefaultDriverEnvValues(ctx context.Context, envMap map[string]string) {
 
 	// Set default value for StaticPVDynamic when it is not present in envMap
 	if _, ok := envMap[config.EnvStaticPVDynamicModeKey]; !ok {
-		logger.Info("StaticPVDynamic is empty or incorrect.", "Defaulting StaticPVDynamic to", config.EnvStaticPVDynamicModeDefaultValue)
+		logger.Info("StaticPV in Dynamic Mode is empty or incorrect.", "Defaulting StaticPV in Dynamic Mode to", config.EnvStaticPVDynamicModeDefaultValue)
 		envMap[config.EnvStaticPVDynamicModeKey] = config.EnvStaticPVDynamicModeDefaultValue
 	}
 }
