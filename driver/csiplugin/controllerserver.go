@@ -57,10 +57,10 @@ const (
 	cgPrefixLen                  = 37
 	softQuotaPercent             = 70 // This value is % of the hardQuotaLimit e.g. 70%
 
-	fsetNotFoundErrCode     = "EFSSG0072C"
-	fsetNotFoundErrMsg      = "400 Invalid value in 'filesetName'"
-	refreshInterval         = 2147483647 //refresh Interval for afm tuning parameters
-	StaticPVInDynamicMethod = "STATIC_PV_DYNAMIC"
+	fsetNotFoundErrCode   = "EFSSG0072C"
+	fsetNotFoundErrMsg    = "400 Invalid value in 'filesetName'"
+	refreshInterval       = 2147483647 //refresh Interval for afm tuning parameters
+	StaticPVInDynamicMode = "STATICPV_DYNAMIC_MODE"
 )
 
 type ScaleControllerServer struct {
@@ -979,15 +979,13 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 
 	filesetName := ""
 
-	StaticPVInDynamicEnabled := os.Getenv(StaticPVInDynamicMethod)
-	klog.Infof("[%s] StaticPVInDynamicMethod env variable is set to [%s]", loggerId, StaticPVInDynamicEnabled)
+	StaticPVInDynamicModeEnabled := os.Getenv(StaticPVInDynamicMode)
+	klog.Infof("[%s] StaticPVInDynamicMode env variable is set to [%s]", loggerId, StaticPVInDynamicModeEnabled)
 	if scaleVol.IsStaticPVBased {
-
-		if strings.ToUpper(StaticPVInDynamicEnabled) == "DISABLED" {
-			klog.Errorf("[%s] Static PV creation is disabled in dynamic provisioning, please enable it by setting environment variable StaticPVInDynamicMethod=enabled", loggerId)
-			return nil, status.Error(codes.InvalidArgument, "Static PV creation is disabled in dynamic provisioning, please enable it by setting environment variable StaticPVInDynamicMethod=enabled")
+		if strings.ToUpper(StaticPVInDynamicModeEnabled) == "DISABLED" {
+			klog.Errorf("[%s] Static PV creation is disabled in dynamic provisioning, please enable it by setting environment variable VAR_DRIVER_STATICPV_DYNAMIC_MODE=enabled", loggerId)
+			return nil, status.Error(codes.InvalidArgument, "Static PV creation is disabled in dynamic provisioning, please enable it by setting environment variable VAR_DRIVER_STATICPV_DYNAMIC_MODE=enabled")
 		}
-
 		// Fetch filesetName from sc parameter "filesetName"
 		if scParams[StaticFilesetNameKey] != "" {
 			filesetName = scParams[StaticFilesetNameKey]
