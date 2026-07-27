@@ -2450,6 +2450,8 @@ func (r *CSIScaleOperatorReconciler) parseConfigMap(ctx context.Context, instanc
 				validateCPULimitsValue(ctx, keyUpper, value, validEnvMap, invalidEnvValueMap)
 			case config.SidecarMemoryLimits:
 				validateMemoryLimitsValue(ctx, keyUpper, value, validEnvMap, invalidEnvValueMap)
+			case config.EnvStaticPVDynamicModeKeyPrefixed:
+				validateEnvVarValue(config.EnvStaticPVDynamicModeValues[:], keyUpper, value, validEnvMap, invalidEnvValueMap)
 			}
 		} else {
 			invalidEnvKeys = append(invalidEnvKeys, key)
@@ -2676,6 +2678,12 @@ func setDefaultDriverEnvValues(ctx context.Context, envMap map[string]string) {
 	if _, ok := envMap[config.SidecarMemoryLimits]; !ok {
 		logger.Info("Sidecars Memory limits is empty or incorrect.", "Defaulting Memory limits to", config.SidecarMemoryLimitsDefaultValue)
 		envMap[config.SidecarMemoryLimits] = config.SidecarMemoryLimitsDefaultValue
+	}
+
+	// Set default value for StaticPVDynamic when it is not present in envMap
+	if _, ok := envMap[config.EnvStaticPVDynamicModeKey]; !ok {
+		logger.Info("StaticPV in Dynamic Mode is empty or incorrect.", "Defaulting StaticPV in Dynamic Mode to", config.EnvStaticPVDynamicModeDefaultValue)
+		envMap[config.EnvStaticPVDynamicModeKey] = config.EnvStaticPVDynamicModeDefaultValue
 	}
 }
 
