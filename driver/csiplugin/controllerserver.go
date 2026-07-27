@@ -42,27 +42,25 @@ import (
 )
 
 const (
-	no                                = "no"
-	yes                               = "yes"
-	notFound                          = "NOT_FOUND"
-	filesystemTypeRemote              = "remote"
-	filesystemMounted                 = "mounted"
-	filesetUnlinkedPath               = "--"
-	ResponseStatusUnknown             = "UNKNOWN"
-	oneGB                      uint64 = 1024 * 1024 * 1024
-	smallestVolSize            uint64 = oneGB                              // 1GB
-	maximumPVSize              uint64 = 931322 * 1024 * 1024 * 1024 * 1024 // 999999999999999K
-	maximumPVSizeForLog               = "953673728GiB"
-	defaultSnapWindow                 = "30" // default snapWindow for Consistency Group snapshots is 30 minutes
-	cgPrefixLen                       = 37
-	softQuotaPercent                  = 70 // This value is % of the hardQuotaLimit e.g. 70%
-	intermittentFusionSnapshot        = "csiclone"
+	no                           = "no"
+	yes                          = "yes"
+	notFound                     = "NOT_FOUND"
+	filesystemTypeRemote         = "remote"
+	filesystemMounted            = "mounted"
+	filesetUnlinkedPath          = "--"
+	ResponseStatusUnknown        = "UNKNOWN"
+	oneGB                 uint64 = 1024 * 1024 * 1024
+	smallestVolSize       uint64 = oneGB                              // 1GB
+	maximumPVSize         uint64 = 931322 * 1024 * 1024 * 1024 * 1024 // 999999999999999K
+	maximumPVSizeForLog          = "953673728GiB"
+	defaultSnapWindow            = "30" // default snapWindow for Consistency Group snapshots is 30 minutes
+	cgPrefixLen                  = 37
+	softQuotaPercent             = 70 // This value is % of the hardQuotaLimit e.g. 70%
 
-	discoverCGFilesetDisabled = "DISABLED"
-
-	fsetNotFoundErrCode = "EFSSG0072C"
-	fsetNotFoundErrMsg  = "400 Invalid value in 'filesetName'"
-	refreshInterval     = 2147483647 //refresh Interval for afm tuning parameters
+	fsetNotFoundErrCode   = "EFSSG0072C"
+	fsetNotFoundErrMsg    = "400 Invalid value in 'filesetName'"
+	refreshInterval       = 2147483647 //refresh Interval for afm tuning parameters
+	StaticPVInDynamicMode = "STATICPV_DYNAMIC_MODE"
 )
 
 type ScaleControllerServer struct {
@@ -980,7 +978,14 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	}
 
 	filesetName := ""
+
+	StaticPVInDynamicModeEnabled := os.Getenv(StaticPVInDynamicMode)
+	klog.Infof("[%s] StaticPVInDynamicMode env variable is set to [%s]", loggerId, StaticPVInDynamicModeEnabled)
 	if scaleVol.IsStaticPVBased {
+		if strings.ToUpper(StaticPVInDynamicModeEnabled) == "DISABLED" {
+			klog.Errorf("[%s] Static PV creation is disabled in dynamic provisioning, please enable it by setting environment variable VAR_DRIVER_STATICPV_DYNAMIC_MODE=enabled", loggerId)
+			return nil, status.Error(codes.InvalidArgument, "Static PV creation is disabled in dynamic provisioning, please enable it by setting environment variable VAR_DRIVER_STATICPV_DYNAMIC_MODE=enabled")
+		}
 		// Fetch filesetName from sc parameter "filesetName"
 		if scParams[StaticFilesetNameKey] != "" {
 			filesetName = scParams[StaticFilesetNameKey]
