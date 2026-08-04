@@ -24,9 +24,9 @@ patches:
           spec:
             containers:
               - name: operator
-                image: quay.io/ibm-spectrum-scale-dev/ibm-spectrum-scale-csi-operator@sha256:a82dbfe3d4e21a32ce24d19d2be968617c85c0568e8b2257d49efe1479111ac5
+                image: quay.io/ibm-spectrum-scale/ibm-spectrum-scale-csi-operator@sha256:a82dbfe3d4e21a32ce24d19d2be968617c85c0568e8b2257d49efe1479111ac5
                 env:
                   - name: METRICS_BIND_ADDRESS
                   - name: WATCH_NAMESPACE
                   - name: CSI_DRIVER_IMAGE
-                    value: quay.io/ibm-spectrum-scale-dev/ibm-spectrum-scale-csi-driver@sha256:6309f857e1bcf0f2a01a945295bfbc8d1a10e55ee50204736a99bdc387640e95
+                    value: quay.io/ibm-spectrum-scale/ibm-spectrum-scale-csi-driver@sha256:6309f857e1bcf0f2a01a945295bfbc8d1a10e55ee50204736a99bdc387640e95
