@@ -1,5 +1,5 @@
 # docker build for IBM Storage Scale CSI Operator
-FROM --platform=$BUILDPLATFORM preprod.icr.io/cp/scale-devops/plumbing/golang:1.22.12 as builder
+FROM --platform=$BUILDPLATFORM preprod.icr.io/cp/scale-devops/plumbing/golang:1.26.5 as builder
 
 ARG TARGETOS
 ARG TARGETARCH
