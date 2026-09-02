@@ -34,8 +34,8 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/klog/v2"
 )
 
@@ -63,8 +63,9 @@ const (
 	fsetLinkNotFoundErrCode = "EFSSG0449C"
 	fsetLinkNotFoundErrMsg  = "is not linked"
 
-	pvcNameKey      = "csi.storage.k8s.io/pvc/name"
-	pvcNamespaceKey = "csi.storage.k8s.io/pvc/namespace"
+	pvcNameKey            = "csi.storage.k8s.io/pvc/name"
+	pvcNamespaceKey       = "csi.storage.k8s.io/pvc/namespace"
+	StaticPVInDynamicMode = "STATICPV_DYNAMIC_MODE"
 )
 
 type ScaleControllerServer struct {
@@ -943,12 +944,18 @@ func (cs *ScaleControllerServer) CreateVolume(newctx context.Context, req *csi.C
 	}
 
 	filesetName := ""
+	StaticPVInDynamicModeEnabled := os.Getenv(StaticPVInDynamicMode)
+	klog.Infof("[%s] StaticPVInDynamicMode env variable is set to [%s]", loggerId, StaticPVInDynamicModeEnabled)
 	if scaleVol.IsStaticPVBased {
 		filesetName = req.GetParameters()["csi.storage.k8s.io/pvc/name"]
 		klog.Infof("[%s] Requested pvc is a static volume", loggerId)
 	}
 
 	if scaleVol.IsStaticPVBased && (isSnapSource || isVolSource) {
+		if strings.ToUpper(StaticPVInDynamicModeEnabled) == "DISABLED" {
+			klog.Errorf("[%s] Static PV creation is disabled in dynamic provisioning, please enable it by setting environment variable VAR_DRIVER_STATICPV_DYNAMIC_MODE=enabled", loggerId)
+			return nil, status.Error(codes.InvalidArgument, "Static PV creation is disabled in dynamic provisioning, please enable it by setting environment variable VAR_DRIVER_STATICPV_DYNAMIC_MODE=enabled")
+		}
 		return nil, status.Error(codes.InvalidArgument, "Creating a static volume from another volume or snapshot is not supported")
 	}
 	klog.Infof("[%s] Requested pvc is a isSnapSource %t, isVolSource %t", loggerId, isSnapSource, isVolSource)
