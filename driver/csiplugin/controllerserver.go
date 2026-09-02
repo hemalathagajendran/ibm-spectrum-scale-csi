@@ -27,11 +27,12 @@ import (
 	"strings"
 	"time"
 
+	"context"
+
 	"github.com/IBM/ibm-spectrum-scale-csi/driver/csiplugin/connectors"
 	"github.com/IBM/ibm-spectrum-scale-csi/driver/csiplugin/settings"
 	"github.com/IBM/ibm-spectrum-scale-csi/driver/csiplugin/utils"
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
